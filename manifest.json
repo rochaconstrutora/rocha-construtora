@@ -1,0 +1,21 @@
+{
+  "name": "Rocha Construtora",
+  "short_name": "Rocha App",
+  "start_url": "./login.html",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/img/logo_preto.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/img/logo_preto.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

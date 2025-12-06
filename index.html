@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Painel Administrativo - Rocha Construtora</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Rocha App">
+  <link rel="apple-touch-icon" href="assets/img/logo_preto.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script defer src="assets/js/supabaseClient.js"></script>
+  <script defer src="assets/js/auth.js"></script>
+  <script defer src="assets/js/utils.js"></script>
+  
+  <script defer src="assets/js/obras.js"></script>
+  <script defer src="assets/js/funcoes.js"></script>
+  <script defer src="assets/js/funcionarios.js"></script>
+  <script defer src="assets/js/dashboard.js"></script>
+  <script defer src="assets/js/usuarios.js"></script>
+  <script defer src="assets/js/relatorios.js"></script>
+  <script defer src="assets/js/modulos_admin.js"></script>
+</head>
+
+<body onload="protegerPagina(['admin', 'financeiro'])">
+  
+  <div class="sidebar-overlay" onclick="toggleMenu()"></div>
+
+  <div class="app-shell">
+    <aside class="md-sidebar" id="main-sidebar">
+      <div class="md-brand">
+       <div class="md-brand-logo" style="background:transparent; display:flex; justify-content:center;">
+          <img src="assets/img/logo_branco.png" alt="Logo" style="max-width:100%; height:auto;">
+       </div>
+        <div>
+          <div class="md-brand-title">Rocha Construtora</div>
+          <div class="md-brand-sub">Painel Administrativo</div>
+        </div>
+      </div>
+
+      <div class="md-nav-title">Gestão</div>
+      <nav class="md-nav">
+        <div class="menu-item active" data-target="dashboard" onclick="mostrarSecao('dashboard')">
+          <span class="material-symbols-outlined">dashboard</span> <span>Dashboard</span>
+        </div>
+        <div class="menu-item" data-target="obras" onclick="mostrarSecao('obras')">
+          <span class="material-symbols-outlined">apartment</span> <span>Obras</span>
+        </div>
+        <div class="menu-item" data-target="funcoes" onclick="mostrarSecao('funcoes')">
+          <span class="material-symbols-outlined">badge</span> <span>Funções</span>
+        </div>
+        <div class="menu-item" data-target="funcionarios" onclick="mostrarSecao('funcionarios')">
+          <span class="material-symbols-outlined">engineering</span> <span>Funcionários</span>
+        </div>
+        
+        <div class="menu-item" data-target="ponto" onclick="mostrarSecao('ponto')">
+          <span class="material-symbols-outlined">event_available</span> <span>Gestão de Ponto</span>
+        </div>
+
+        <div class="menu-item" data-target="usuarios" onclick="mostrarSecao('usuarios')">
+          <span class="material-symbols-outlined">group</span> <span>Usuários</span>
+        </div>
+        <div class="menu-item" data-target="caixa" onclick="mostrarSecao('caixa')">
+          <span class="material-symbols-outlined">payments</span> <span>Caixa da Obra</span>
+        </div>
+        <div class="menu-item" data-target="relatorios" onclick="mostrarSecao('relatorios')">
+          <span class="material-symbols-outlined">insights</span> <span>Relatórios RH</span>
+        </div>
+        <div class="menu-item" data-target="diario" onclick="mostrarSecao('diario')">
+          <span class="material-symbols-outlined">menu_book</span> <span>Diário de Obra</span>
+        </div>
+        <div class="menu-item" data-target="materiais" onclick="mostrarSecao('materiais')">
+          <span class="material-symbols-outlined">inventory_2</span> <span>Materiais</span>
+        </div>
+      </nav>
+
+      <div class="menu-item logout" id="btn-logout">
+        <span class="material-symbols-outlined">logout</span> <span>Sair</span>
+      </div>
+    </aside>
+
+    <main class="md-main">
+      <header class="md-header">
+        <button class="mobile-menu-btn" onclick="toggleMenu()">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="md-header-left">
+          <h1>Painel Rocha</h1>
+        </div>
+        <div class="md-header-right">
+          <div class="md-chip">
+            <span class="material-symbols-outlined" style="font-size:16px;">verified_user</span>
+            Usuário
+          </div>
+          <div class="md-user-pill">
+            <span class="avatar">U</span>
+            <span>Admin</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="md-content">
+
+        <section id="sec-dashboard" class="md-section active">
+            <div class="md-section-header">
+              <h2>Visão Geral</h2>
+              <p id="dash-resumo">Carregando dados...</p>
+            </div>
+            <div class="dash-stats">
+                <div class="md-card stat-card">
+                    <div class="stat-icon" style="background:#e0f2fe; color:#0284c7;"><span class="material-symbols-outlined">apartment</span></div>
+                    <div><span class="stat-label">Obras Ativas</span><h3 id="dash-obras">-</h3></div>
+                </div>
+                <div class="md-card stat-card">
+                    <div class="stat-icon" style="background:#f0fdf4; color:#16a34a;"><span class="material-symbols-outlined">groups</span></div>
+                    <div><span class="stat-label">Funcionários</span><h3 id="dash-funcionarios">-</h3></div>
+                </div>
+                <div class="md-card stat-card">
+                    <div class="stat-icon" style="background:#fef3c7; color:#d97706;"><span class="material-symbols-outlined">payments</span></div>
+                    <div><span class="stat-label">Caixa (Mês)</span><h3 id="dash-caixa">R$ 0,00</h3></div>
+                </div>
+                <div class="md-card stat-card">
+                    <div class="stat-icon" style="background:#f3e8ff; color:#9333ea;"><span class="material-symbols-outlined">calendar_month</span></div>
+                    <div><span class="stat-label">Diárias (Mês)</span><h3 id="dash-diarias">-</h3></div>
+                </div>
+            </div>
+
+            <div class="dash-split">
+                <div class="md-card chart-card">
+                    <div class="card-header"><h3>Diárias por Obra</h3></div>
+                    <div class="chart-wrapper"><canvas id="dashDiariasPorObra"></canvas></div>
+                </div>
+                <div class="dash-side-col">
+                    <div class="md-card action-card" onclick="mostrarSecao('materiais')">
+                        <div class="action-header"><h3>Materiais</h3><span class="material-symbols-outlined">arrow_forward</span></div>
+                        <p id="dash-materiais" class="big-number">-</p>
+                        <small>Pendentes</small>
+                    </div>
+                    <div class="md-card info-card">
+                        <h3>Total RH (Mês)</h3>
+                        <p id="dash-valor" class="big-number">R$ 0,00</p>
+                        <small class="text-muted">Lançamentos de ponto</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="md-card mt-4">
+              <h3><span class="material-symbols-outlined" style="vertical-align:middle;margin-right:5px;color:#64748b">timelapse</span> Inteligência de Prazos</h3>
+              <div class="table-wrapper">
+                <table class="md-table">
+                  <thead><tr><th>Obra</th><th>Início</th><th>Prev. Término</th><th>Progresso (%)</th><th>Status Automático</th></tr></thead>
+                  <tbody id="lista-tempo-obras"><tr><td colspan="5">Carregando...</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+        </section>
+
+        <section id="sec-obras" class="md-section">
+          <div class="md-section-header"><h2>Obras</h2></div>
+          <div class="md-card">
+              <h3>Gerenciar Obra</h3>
+              <form id="form-obras" class="grid-form">
+                  <input type="hidden" id="obra-id">
+                  <div class="md-field"><label>Nome da Obra</label><input type="text" id="obra-nome"></div>
+                  
+                  <div class="md-field"><label>CEP (Busca Auto)</label><input type="text" id="obra-cep" class="mask-cep" placeholder="00000-000"></div>
+                  <div class="md-field"><label>Endereço (Rua)</label><input type="text" id="obra-rua"></div>
+                  <div class="md-field"><label>Bairro</label><input type="text" id="obra-bairro"></div>
+                  <div class="md-field"><label>Cidade</label><input type="text" id="obra-cidade"></div>
+                  <div class="md-field" style="grid-template-columns: 80px 1fr; display:grid; gap:10px;">
+                      <div><label>UF</label><input type="text" id="obra-estado"></div>
+                      <div><label>Número</label><input type="text" id="obra-numero"></div>
+                  </div>
+
+                  <div class="md-field"><label>Status</label><select id="obra-status"><option value="ativa">Ativa</option><option value="inativa">Inativa</option></select></div>
+                  <div class="md-field"><label>Início</label><input type="date" id="obra-inicio"></div>
+                  <div class="md-field"><label>Fim (Previsão)</label><input type="date" id="obra-fim"></div>
+                  <div class="md-field"><label>% Conclusão</label><input type="number" id="obra-perc" min="0" max="100" placeholder="0 a 100"></div>
+                  <div class="md-actions"><button class="btn-primary">Salvar Obra</button></div>
+              </form>
+          </div>
+          <div class="md-card mt-4">
+              <div class="table-wrapper">
+                  <table class="md-table">
+                      <thead><tr><th>Nome</th><th>Local</th><th>Status</th><th>Prazo</th><th>% / Situação</th><th>Ações</th></tr></thead>
+                      <tbody id="lista-obras"></tbody>
+                  </table>
+              </div>
+          </div>
+        </section>
+
+        <section id="sec-funcoes" class="md-section">
+            <div class="md-section-header"><h2>Funções e Cargos</h2></div>
+            <div class="md-card">
+                <form id="form-funcoes">
+                    <input type="hidden" id="funcao-id">
+                    <div class="md-field"><label>Nome do Cargo</label><input type="text" id="funcao-nome"></div>
+                    <div class="grid-form" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
+                        <div class="md-field"><label>Valor Meia</label><input type="text" id="funcao-meia" class="mask-money" placeholder="R$ 0,00"></div>
+                        <div class="md-field"><label>Valor Diária</label><input type="text" id="funcao-diaria" class="mask-money" placeholder="R$ 0,00"></div>
+                        <div class="md-field"><label>Valor Hora Extra</label><input type="text" id="funcao-hora" class="mask-money" placeholder="R$ 0,00"></div>
+                    </div>
+                    <button class="btn-primary w-100" style="margin-top:15px;">Salvar Função</button>
+                </form>
+            </div>
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Cargo</th><th>Meia</th><th>Diária</th><th>H. Extra</th><th>Status</th><th>Ações</th></tr></thead>
+                        <tbody id="lista-funcoes"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-funcionarios" class="md-section">
+            <div class="md-section-header"><h2>Funcionários</h2></div>
+            <div class="md-card">
+                <form id="form-funcionarios" class="grid-form">
+    <input type="hidden" id="funcionario-id">
+    
+    <div class="md-field span-2"><label>Nome Completo</label><input type="text" id="funcionario-nome"></div>
+    <div class="md-field"><label>Apelido</label><input type="text" id="funcionario-apelido"></div>
+    <div class="md-field"><label>Função</label><select id="funcionario-funcao"></select></div>
+    <div class="md-field"><label>Obra Atual</label><select id="funcionario-obra"></select></div>
+    <div class="md-field"><label>CPF (Validação Real)</label><input type="text" id="funcionario-cpf" class="mask-cpf"></div>
+    
+    <div class="md-field"><label>CEP</label><input type="text" id="funcionario-cep" class="mask-cep"></div>
+    <div class="md-field"><label>Rua</label><input type="text" id="funcionario-rua"></div>
+    <div class="md-field"><label>Bairro</label><input type="text" id="funcionario-bairro"></div>
+    <div class="md-field"><label>Número</label><input type="text" id="funcionario-numero"></div>
+    
+    <div class="md-field"><label>Cidade</label><input type="text" id="funcionario-cidade"></div>
+    <div class="md-field"><label>Estado (UF)</label><input type="text" id="funcionario-estado"></div>
+
+    <div class="md-field"><label>Chave PIX</label><input type="text" id="funcionario-pix"></div>
+    <div class="md-field"><label>Conta Bancária</label><input type="text" id="funcionario-conta"></div>
+    
+    <div class="md-actions span-all"><button class="btn-primary">Salvar Funcionário</button></div>
+</form>
+            </div>
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Nome</th><th>Apelido</th><th>Função</th><th>Obra</th><th>Status</th><th>Ações</th></tr></thead>
+                        <tbody id="lista-funcionarios"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-ponto" class="md-section">
+            <div class="md-section-header"><h2>Gestão de Ponto / Diárias</h2></div>
+            
+            <div class="md-card" id="card-edit-ponto" style="display:none; border-left:5px solid #f59e0b; margin-bottom:20px;">
+                <h3 style="color:#d97706">✏️ Editar Registro</h3>
+                <form id="form-ponto-admin" class="grid-form">
+                    <input type="hidden" id="ponto-admin-id">
+                    <div class="md-field"><label>Funcionário</label><input type="text" id="ponto-admin-nome" readonly style="background:#f1f5f9; color:#64748b;"></div>
+                    <div class="md-field"><label>Data</label><input type="date" id="ponto-admin-data" readonly style="background:#f1f5f9; color:#64748b;"></div>
+                    <div class="md-field"><label>Tipo</label><select id="ponto-admin-tipo"><option value="DIARIA">Diária Completa</option><option value="MEIA">Meia Diária</option></select></div>
+                    <div class="md-field"><label>Valor (R$)</label><input type="text" id="ponto-admin-valor" class="mask-money"></div>
+                    <div class="md-actions span-2" style="display:flex; gap:10px;">
+                        <button type="button" class="btn-primary" onclick="salvarEdicaoPontoAdmin()">Salvar Alterações</button>
+                        <button type="button" class="btn-ghost" onclick="cancelarEdicaoPonto()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="md-card">
+                <div class="grid-form" style="align-items:end;">
+                    <div class="md-field"><label>Mês</label><input type="month" id="ponto-filtro-mes"></div>
+                    <div class="md-field"><label>Obra</label><select id="ponto-filtro-obra"><option value="">Todas</option></select></div>
+                    <div class="md-field"><label>Funcionário</label><select id="ponto-filtro-func"><option value="">Todos</option></select></div>
+                    <button class="btn-primary" onclick="carregarPontosAdmin()" style="height:42px; margin-bottom:2px;">Filtrar Registros</button>
+                </div>
+            </div>
+            
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Data</th><th>Funcionário</th><th>Obra</th><th>Tipo</th><th>Valor + Extras</th><th>Ações</th></tr></thead>
+                        <tbody id="tabela-ponto-admin"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-usuarios" class="md-section">
+            <div class="md-section-header"><h2>Usuários do Sistema</h2></div>
+            <div class="md-card">
+                <form id="form-usuario">
+                    <div class="md-field"><label>Nome</label><input type="text" id="usuario-nome"></div>
+                    <div class="md-field"><label>E-mail (Login)</label><input type="email" id="usuario-email"></div>
+                    <div class="md-field" id="usuario-senha-box"><label>Senha</label><input type="password" id="usuario-senha"></div>
+                    <div class="md-field"><label>Perfil</label><select id="usuario-tipo"><option value="admin">Administrador</option><option value="responsavel">Responsável (Mestre)</option><option value="financeiro">Financeiro</option><option value="rh">RH</option></select></div>
+                    <div class="md-field" id="usuario-obra-box" style="display:none"><label>Vincular Obra</label><select id="usuario-obra"></select></div>
+                    <button class="btn-primary w-100">Criar Usuário</button>
+                </form>
+            </div>
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Nome</th><th>Login</th><th>Tipo</th><th>Obra</th><th>Status</th><th>Ações</th></tr></thead>
+                        <tbody id="lista-usuarios"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-caixa" class="md-section">
+            <div class="md-section-header"><h2>Caixa da Obra</h2></div>
+            <div class="md-card">
+                <h3>Lançamento Administrativo</h3>
+                <form id="form-caixa-admin" class="grid-form">
+                    <input type="hidden" id="caixa-admin-id">
+                    <div class="md-field"><label>Obra</label><select id="caixa-admin-obra"><option value="">Selecione...</option></select></div>
+                    <div class="md-field"><label>Data</label><input type="date" id="caixa-admin-data"></div>
+                    <div class="md-field"><label>Descrição</label><input type="text" id="caixa-admin-desc" placeholder="Ex: Cimento Extra"></div>
+                    <div class="md-field"><label>Valor (R$)</label><input type="text" id="caixa-admin-valor" class="mask-money"></div>
+                    <div class="md-actions"><button type="submit" class="btn-primary">Salvar Lançamento</button></div>
+                </form>
+            </div>
+            <div class="md-card mt-4">
+                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
+                    <div class="md-field" style="flex:1"><label>Filtrar Obra</label><select id="caixa-filtro-obra"><option value="">Todas</option></select></div>
+                    <div class="md-field" style="flex:1"><label>Filtrar Mês</label><input type="month" id="caixa-filtro-mes"></div>
+                    <button class="btn-primary" onclick="carregarCaixaAdmin()" style="height:42px; margin-top:24px;">Filtrar</button>
+                </div>
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Data</th><th>Obra / Autor</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+                        <tbody id="tabela-caixa"></tbody>
+                    </table>
+                </div>
+                <div style="text-align:right; font-size:18px; font-weight:bold; margin-top:15px;">Total do Período: <span id="caixa-total-geral" style="color:#ef4444;">R$ 0,00</span></div>
+            </div>
+        </section>
+
+        <section id="sec-relatorios" class="md-section">
+            <div class="md-section-header"><h2>Relatórios RH</h2></div>
+            <div class="md-card">
+                <form id="form-relatorios" class="grid-form" onsubmit="event.preventDefault()">
+                    <div class="md-field"><label>Obra</label><select id="relatorio-obra"></select></div>
+                    <div class="md-field"><label>Funcionário</label><select id="relatorio-funcionario"></select></div>
+                    <div class="md-field"><label>Tipo</label>
+                        <select id="relatorio-tipo" onchange="atualizarFiltrosRelatorio()">
+                            <option value="quinzena">Intervalo de datas</option>
+                            <option value="mensal">Mensal</option>
+                            <option value="anual">Anual</option>
+                        </select>
+                    </div>
+                    
+                    <div id="filtro-quinzena" class="span-2 grid-form" style="display:none; margin:0; padding:0;">
+                        <div class="md-field"><label>Início</label><input type="date" id="rel-q-inicio"></div>
+                        <div class="md-field"><label>Fim</label><input type="date" id="rel-q-fim"></div>
+                    </div>
+                    <div id="filtro-mensal" class="span-2 grid-form" style="display:none; margin:0; padding:0;">
+                        <div class="md-field"><label>Mês</label><select id="rel-mes"><option value="1">Janeiro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select></div>
+                        <div class="md-field"><label>Ano</label><input type="number" id="rel-ano-mensal"></div>
+                    </div>
+                    <div id="filtro-anual" style="display:none"><div class="md-field"><label>Ano</label><input type="number" id="rel-ano"></div></div>
+
+                    <div class="md-actions span-all" style="display:flex; gap:10px; flex-wrap:wrap;">
+                        <button type="button" class="btn-primary" onclick="gerarRelatorioTela()">Visualizar</button>
+                        <button type="button" class="btn-secondary" onclick="baixarFolhaExcel()">Excel</button>
+                        <button type="button" class="btn-secondary" onclick="baixarFolhaPDF()">PDF</button>
+                        <button type="button" class="btn-secondary" onclick="baixarContracheques()">Recibos</button>
+                        <button type="button" class="btn-primary" style="background:#0f172a;" onclick="gerarRelatorioFinanceiroObra()">
+    💲 Custo Obra
+</button>
+                    </div>
+                </form>
+            </div>
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table" id="tabela-relatorio">
+                        <thead><tr><th>Dados do Funcionário</th><th>Obra</th><th>Dias / Extras</th><th>Valor Líquido</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div style="text-align:right; font-size:18px; font-weight:bold; margin-top:15px;">Total: <span id="relatorio-total">R$ 0,00</span></div>
+            </div>
+        </section>
+
+        <section id="sec-diario" class="md-section">
+            <div class="md-section-header"><h2>Diário de Obras</h2></div>
+            <div class="md-card" id="card-edit-diario" style="display:none; border-left:5px solid #f59e0b;">
+                <h3 style="color:#d97706">✏️ Editar Diário</h3>
+                <form id="form-diario-admin">
+                    <input type="hidden" id="diario-admin-id">
+                    <div class="grid-form">
+                        <div class="md-field"><label>Data</label><input type="date" id="diario-admin-data" readonly style="background:#f1f5f9; color:#64748b;"></div>
+                        <div class="md-field"><label>Clima</label><select id="diario-admin-clima"><option value="Ensolarado">Ensolarado</option><option value="Nublado">Nublado</option><option value="Chuvoso">Chuvoso</option><option value="Variável">Variável</option></select></div>
+                    </div>
+                    <div class="md-field">
+                        <label>Resumo das Atividades</label>
+                        <textarea id="diario-admin-resumo" rows="4" style="width:100%; border:1px solid #e2e8f0; border-radius:8px; padding:10px;"></textarea>
+                    </div>
+                    <div class="md-actions" style="display:flex; gap:10px;">
+                        <button type="button" class="btn-primary" onclick="salvarEdicaoDiarioAdmin()">Salvar Alterações</button>
+                        <button type="button" class="btn-ghost" onclick="cancelarEdicaoDiario()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+            <div class="md-card mt-4">
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <div class="md-field" style="flex:1"><label>Obra</label><select id="admin-diario-obra"><option value="">Todas</option></select></div>
+                    <div class="md-field" style="flex:1"><label>Período</label><input type="month" id="admin-diario-mes"></div>
+                    <button class="btn-primary" onclick="carregarDiariosAdmin()" style="height:42px; margin-top:24px;">Filtrar</button>
+                    <button class="btn-secondary" onclick="baixarDiarioPDF()" style="height:42px; margin-top:24px;">
+                        <span class="material-symbols-outlined">picture_as_pdf</span> Relatório (PDF)
+                    </button>
+                </div>
+            </div>
+            <div class="md-card mt-4">
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th style="width:100px;">Data</th><th>Obra / Resp.</th><th>Clima</th><th>Resumo</th><th style="text-align:center;">Fotos/Ações</th></tr></thead>
+                        <tbody id="tabela-diarios"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-materiais" class="md-section">
+            <div class="md-section-header"><h2>Materiais</h2></div>
+            <div class="md-card">
+                <div style="display:flex; gap:10px; margin-bottom:15px; overflow-x:auto;">
+                    <button class="btn-primary" onclick="carregarMateriaisAdmin('Pendente')">Pendentes</button>
+                    <button class="btn-secondary" onclick="carregarMateriaisAdmin('Comprado')">Comprados</button>
+                    <button class="btn-ghost" onclick="carregarMateriaisAdmin('Entregue')">Entregues</button>
+                </div>
+                <div class="table-wrapper">
+                    <table class="md-table">
+                        <thead><tr><th>Data</th><th>Obra</th><th>Item</th><th>Qtd.</th><th>Urgência</th><th>Status</th><th>Ação</th></tr></thead>
+                        <tbody id="tabela-materiais"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+      </section>
+    </main>
+  </div>
+
+  <script>
+    function mostrarSecao(secao) {
+      const secoes = ["dashboard", "obras", "funcoes", "funcionarios", "ponto", "usuarios", "caixa", "relatorios", "diario", "materiais"];
+      secoes.forEach((id) => {
+        const el = document.getElementById("sec-" + id);
+        if (el) {
+            el.style.display = (id === secao) ? "block" : "none";
+            if(id === secao) el.classList.add('active');
+        }
+      });
+      document.querySelectorAll(".menu-item").forEach((i) => {
+        i.classList.toggle("active", i.getAttribute("data-target") === secao);
+      });
+      if(window.innerWidth <= 900 && window.toggleMenu) window.toggleMenu();
+    }
+    function atualizarFiltrosRelatorio() {
+      const tipo = document.getElementById("relatorio-tipo").value;
+      document.getElementById("filtro-quinzena").style.display = tipo === "quinzena" ? "flex" : "none";
+      document.getElementById("filtro-mensal").style.display = tipo === "mensal" ? "flex" : "none";
+      document.getElementById("filtro-anual").style.display = tipo === "anual" ? "block" : "none";
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+      mostrarSecao("dashboard");
+      atualizarFiltrosRelatorio();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Login - Rocha Construtora</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="assets/img/logo_preto.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/style.css">
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="assets/js/supabaseClient.js"></script>
+  <script defer src="assets/js/auth.js"></script>
+  <script defer src="assets/js/utils.js"></script>
+</head>
+
+<body class="login-body">
+
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="assets/img/logo_preto.png" alt="Logo Rocha Construtora">
+      </div>
+
+      <h2 class="login-title">Acessar Painel</h2>
+
+      <form onsubmit="login(event)">
+        <div class="md-field" style="text-align:left">
+          <label for="login-email">E-mail</label>
+          <input type="email" id="login-email" placeholder="seu@email.com" required>
+        </div>
+
+        <div class="md-field" style="text-align:left">
+          <label for="login-senha">Senha</label>
+          <input type="password" id="login-senha" placeholder="Sua senha" required>
+        </div>
+
+        <div class="md-actions" style="margin-top:25px; display:block;">
+          <button type="submit" class="btn-primary" style="width:100%; padding:12px; font-size:16px;">
+            <span class="material-symbols-outlined" style="margin-right:8px; font-size:20px;">login</span>
+            Entrar
+          </button>
+        </div>
+
+        <div id="error-msg" class="login-error" style="display:none;"></div>
+        
+        <div style="margin-top:20px; font-size:13px;">
+          <a href="reset.html" style="color:#1e88e5; text-decoration:none;">Esqueci a minha senha</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>

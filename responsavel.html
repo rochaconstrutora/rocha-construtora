@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>App do Mestre - Rocha Construtora</title>
+  
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="App Rocha">
+  <link rel="apple-touch-icon" href="assets/img/logo_preto.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  
+  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/compressorjs/1.2.1/compressor.min.js"></script>
+  <script defer src="assets/js/supabaseClient.js"></script>
+  <script defer src="assets/js/auth.js"></script>
+  <script defer src="assets/js/utils.js"></script>
+  <script defer src="assets/js/responsavel_app.js"></script> 
+
+  <style>
+    /* Ajustes específicos para Mobile */
+    body { padding-bottom: 80px; background: #f8fafc; } 
+    .mobile-header {
+      background: #ffffff; padding: 15px 20px; border-bottom: 1px solid #e2e8f0;
+      position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .mobile-header h1 { font-size: 18px; margin: 0; color: #1e293b; font-weight: 700; }
+    .mobile-header .badge { font-size: 12px; background: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    
+    .bottom-nav {
+      position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top: 1px solid #e2e8f0;
+      display: flex; justify-content: space-around; padding: 10px 0; z-index: 100;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.05); padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+    .nav-btn {
+      border: none; background: none; display: flex; flex-direction: column; align-items: center; gap: 4px;
+      color: #94a3b8; font-size: 11px; font-weight: 500; cursor: pointer; padding: 5px;
+    }
+    .nav-btn.active { color: #1e88e5; }
+    .nav-btn.active span { font-variation-settings: 'FILL' 1; }
+    
+    .app-section { display: none; animation: fadeIn 0.3s ease-out; padding: 15px; }
+    .app-section.active { display: block; }
+    
+    .app-card {
+      background: white; border-radius: 12px; padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #f1f5f9;
+    }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #334155; display: flex; align-items: center; gap: 8px; }
+    textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-family: inherit; resize: vertical; }
+  </style>
+</head>
+<body onload="protegerPagina('responsavel')" style="overflow-y: auto !important; height: auto !important;">
+
+  <header class="mobile-header">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <img src="assets/img/logo_preto.png" alt="Rocha Construtora" style="height:32px; width:auto;">
+      
+      <div style="display:flex; flex-direction:column; justify-content:center;">
+        <small style="color:#64748b; font-size:11px; line-height:1;">Obra atual:</small>
+        <small style="color:#1e293b; font-weight:700; font-size:13px; line-height:1.2;" id="obra-titulo">Carregando...</small>
+      </div>
+    </div>
+    <div class="badge" id="user-badge">Mestre</div>
+  </header>
+
+  <section id="tab-frequencia" class="app-section active">
+    <div class="app-card">
+      <div class="card-title"><span class="material-symbols-outlined">how_to_reg</span> Registrar Ponto</div>
+      <div class="md-field"><label>Data</label><input type="date" id="ponto-data" class="form-control"></div>
+      <div class="md-field"><label>Funcionário</label><select id="ponto-funcionario" class="form-control"><option>Carregando...</option></select></div>
+      
+      <div style="display:flex; gap:10px;">
+          <div class="md-field" style="flex:1;">
+              <label>Tipo de Diária</label>
+              <select id="ponto-tipo" class="form-control">
+                  <option value="">Selecione...</option>
+                  <option value="DIARIA">Diária Completa</option>
+                  <option value="MEIA">Meia Diária</option>
+              </select>
+          </div>
+          <div class="md-field" style="width: 100px;">
+              <label>H. Extras</label>
+              <input type="number" id="ponto-extras" class="form-control" placeholder="0" min="0" step="0.5">
+          </div>
+      </div>
+
+      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="registrarPonto()">Confirmar Presença</button>
+    </div>
+    <div class="app-card">
+        <div class="card-title">Registros de Hoje</div>
+        <div class="table-wrapper">
+            <table class="md-table">
+                <thead><tr><th>Nome</th><th>Valor</th><th>Ação</th></tr></thead>
+                <tbody id="lista-ponto"><tr><td colspan="3">Carregando...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+  </section>
+
+  <section id="tab-diario" class="app-section">
+    <div class="app-card">
+      <div class="card-title"><span class="material-symbols-outlined">menu_book</span> Diário de Obra</div>
+      <div class="md-field"><label>Data</label><input type="date" id="diario-data" class="form-control"></div>
+      <div class="md-field">
+          <label>Clima</label>
+          <select id="diario-clima" class="form-control">
+              <option value="Ensolarado">☀️ Ensolarado</option>
+              <option value="Nublado">☁️ Nublado</option>
+              <option value="Chuvoso">🌧️ Chuvoso</option>
+              <option value="Variável">⛅ Variável</option>
+          </select>
+      </div>
+      <div class="md-field">
+          <label>Resumo</label>
+          <textarea id="diario-resumo" rows="4" placeholder="O que foi feito hoje?"></textarea>
+      </div>
+      <div class="md-field">
+        <label>Fotos do Dia (Máx 5)</label>
+        <input type="file" id="diario-foto" class="form-control" accept="image/*" multiple>
+        <div id="upload-status" style="display:none; color:#2563eb; font-weight:bold; font-size:12px; margin-top:8px; padding:10px; background:#eff6ff; border-radius:4px; text-align:center;">Aguardando...</div>
+      </div>
+      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="salvarDiario()">Salvar Diário</button>
+    </div>
+    <div class="app-card">
+        <div class="card-title">Histórico Recente</div>
+        <div id="lista-diario" style="font-size:13px; color:#475569;"></div>
+    </div>
+  </section>
+
+  <section id="tab-gastos" class="app-section">
+    <div class="app-card">
+      <div class="card-title"><span class="material-symbols-outlined">payments</span> Lançar Despesa</div>
+      <div class="md-field"><label>Descrição (O que comprou?)</label><input type="text" id="gasto-desc" class="form-control" placeholder="Ex: Gasolina, Almoço"></div>
+      <div class="md-field"><label>Valor (R$)</label><input type="text" id="gasto-valor" class="form-control mask-money" placeholder="R$ 0,00"></div>
+      <div class="md-field"><label>Data</label><input type="date" id="gasto-data" class="form-control"></div>
+      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="lancarGasto()">Salvar Despesa</button>
+    </div>
+    <div class="app-card">
+        <div class="card-title">Meus Lançamentos (Mês)</div>
+        <div class="table-wrapper">
+            <table class="md-table">
+                <thead><tr><th>Dia</th><th>Desc.</th><th>R$</th><th>X</th></tr></thead>
+                <tbody id="lista-gastos"><tr><td colspan="4">...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+  </section>
+
+  <section id="tab-materiais" class="app-section">
+    <div class="app-card">
+      <div class="card-title"><span class="material-symbols-outlined">shopping_cart</span> Pedir Material</div>
+      <div class="md-field"><label>Item</label><input type="text" id="mat-item" class="form-control" placeholder="Ex: Cimento"></div>
+      <div class="md-field" style="display:flex; gap:10px;">
+        <div style="flex:1"><label>Qtd.</label><input type="text" id="mat-qtd" class="form-control"></div>
+        <div style="flex:1">
+            <label>Urgência</label>
+            <select id="mat-urgencia" class="form-control">
+                <option value="Normal">Normal</option>
+                <option value="Alta">Alta</option>
+                <option value="Critica">Crítica 🚨</option>
+            </select>
+        </div>
+      </div>
+      <div class="md-field"><label>Obs</label><input type="text" id="mat-obs" class="form-control"></div>
+      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="pedirMaterial()">Enviar Pedido</button>
+    </div>
+    <div class="app-card">
+        <div class="card-title">Meus Pedidos</div>
+        <div class="table-wrapper">
+            <table class="md-table">
+                <thead><tr><th>Item</th><th>Status</th></tr></thead>
+                <tbody id="lista-materiais"><tr><td colspan="2">...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+  </section>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="mudarAba('frequencia', this)"><span class="material-symbols-outlined">group</span>Ponto</button>
+    <button class="nav-btn" onclick="mudarAba('diario', this)"><span class="material-symbols-outlined">edit_note</span>Diário</button>
+    <button class="nav-btn" onclick="mudarAba('gastos', this)"><span class="material-symbols-outlined">payments</span>Gastos</button>
+    <button class="nav-btn" onclick="mudarAba('materiais', this)"><span class="material-symbols-outlined">inventory_2</span>Materiais</button>
+    <button class="nav-btn" style="color:#ef4444;" onclick="logout()"><span class="material-symbols-outlined">logout</span>Sair</button>
+  </nav>
+
+  <script>
+    function mudarAba(abaId, btn) {
+      document.querySelectorAll('.app-section').forEach(s => s.classList.remove('active'));
+      document.getElementById('tab-' + abaId).classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      if(btn) btn.classList.add('active');
+    }
+  </script>
+</body>
+</html>

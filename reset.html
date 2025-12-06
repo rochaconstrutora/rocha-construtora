@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Redefinição de senha - Rocha Construtora</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script defer src="assets/js/supabaseClient.js"></script>
+  <script defer src="assets/js/auth.js"></script>
+  <script defer src="assets/js/utils.js"></script>
+  <script defer src="assets/js/reset.js"></script>
+</head>
+<body class="login-body">
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <img src="assets/img/logo_preto.png" alt="Rocha Construtora">
+      </div>
+      <h2 class="login-title">Nova Senha</h2>
+      <p id="reset-status" style="margin-bottom: 20px; font-size:14px; color:#64748b;">
+        Aguarde, validando link...
+      </p>
+      <form id="reset-form" style="display:none; text-align:left;">
+        <div class="md-field">
+          <label>Nova senha</label>
+          <input type="password" id="nova-senha" class="form-control" placeholder="Mínimo 6 caracteres" required>
+        </div>
+        <div class="md-field">
+          <label>Confirme a nova senha</label>
+          <input type="password" id="confirma-senha" class="form-control" placeholder="Repita a senha" required>
+        </div>
+        <div class="md-actions" style="margin-top:25px; display:block;">
+          <button type="submit" class="btn-primary" style="width:100%; padding:12px; font-size:16px;">
+            Redefinir senha
+          </button>
+        </div>
+      </form>
+      <div style="margin-top:20px; text-align:center; font-size:13px;">
+        <a href="login.html" style="color:#1e88e5; text-decoration:none; font-weight:500;">
+          Voltar para o login
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
