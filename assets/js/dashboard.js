@@ -10,6 +10,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ano = now.getFullYear();
     const mes = String(now.getMonth() + 1).padStart(2, '0');
     const primeiroDia = `${ano}-${mes}-01`;
+    const proximoMes = new Date(ano, Number(mes), 1); // 1º dia do mês seguinte
+    const proximoDia = `${proximoMes.getFullYear()}-${String(proximoMes.getMonth() + 1).padStart(2,'0')}-01`;
 
     const [ 
         { data: obras }, 
@@ -20,14 +22,87 @@ document.addEventListener("DOMContentLoaded", async () => {
     ] = await Promise.all([
       supa.from("obras").select("id, nome, ativo, data_inicio, percentual, data_fim"), 
       supa.from("funcionarios").select("*", { count: 'exact', head: true }),
-      supa.from("registros").select("valor, obra_id").gte("data", primeiroDia),
+      supa.from("registros").select("valor, obra_id").gte("data", primeiroDia).lt("data", proximoDia),
       supa.from("solicitacoes_materiais").select("*", { count: 'exact', head: true }).eq("status", "Pendente"),
-      supa.from("caixa_obra").select("valor").gte("data", primeiroDia)
+      supa.from("caixa_obra").select("valor, obra_id").gte("data", primeiroDia).lt("data", proximoDia)
     ]);
 
     // SOMAS SEGURAS
     const totalCaixa = (caixa || []).reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
     const totalRH = (regsRH || []).reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+
+
+    // CUSTO COMPLETO (RH + CAIXA)
+    const totalCusto = totalRH + totalCaixa;
+    const elCusto = document.getElementById("dash-custo");
+    if (elCusto) elCusto.textContent = totalCusto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+    const elPeriodo = document.getElementById("dash-custo-periodo");
+    if (elPeriodo) elPeriodo.textContent = `${mes}/${ano}`;
+
+    // Totais por obra
+    const rhPorObra = {};
+    (regsRH || []).forEach(r => {
+      const oid = r.obra_id;
+      rhPorObra[oid] = (rhPorObra[oid] || 0) + (Number(r.valor) || 0);
+    });
+
+    const caixaPorObra = {};
+    (caixa || []).forEach(c => {
+      const oid = c.obra_id;
+      caixaPorObra[oid] = (caixaPorObra[oid] || 0) + (Number(c.valor) || 0);
+    });
+
+    const obrasAtivas = (obras || []).filter(o => o.ativo);
+    const custoRows = obrasAtivas.map(o => {
+      const rh = rhPorObra[o.id] || 0;
+      const cx = caixaPorObra[o.id] || 0;
+      return { nome: o.nome, rh, caixa: cx, total: rh + cx };
+    }).sort((a,b)=> b.total - a.total);
+
+    // Tabela Custo por Obra
+    const tbodyCusto = document.getElementById("dash-custo-por-obra");
+    const totalGeralEl = document.getElementById("dash-custo-total-geral");
+    if (tbodyCusto) {
+      tbodyCusto.innerHTML = "";
+      if (custoRows.length === 0) {
+        tbodyCusto.innerHTML = "<tr><td colspan='4' style='text-align:center; padding:10px; color:#94a3b8;'>Sem obras ativas.</td></tr>";
+      } else {
+        custoRows.forEach(r => {
+          tbodyCusto.innerHTML += `<tr>
+            <td style="font-weight:600;">${escapeHtml(r.nome)}</td>
+            <td>${r.rh.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td>
+            <td>${r.caixa.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td>
+            <td style="font-weight:700;">${r.total.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</td>
+          </tr>`;
+        });
+      }
+    }
+    if (totalGeralEl) totalGeralEl.textContent = custoRows.reduce((acc,r)=>acc+r.total,0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+
+    // Gráfico Custo por Obra
+    const ctxCusto = document.getElementById("dashCustoPorObra");
+    if (ctxCusto && typeof Chart !== "undefined") {
+      const labels = custoRows.map(r => r.nome);
+      const values = custoRows.map(r => Math.round(r.total));
+      if (labels.length > 0) {
+        new Chart(ctxCusto.getContext("2d"), {
+          type: "bar",
+          data: { labels, datasets: [{ label: "Custo (R$)", data: values, backgroundColor: "#0f172a", borderRadius: 4 }] },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: (v)=> `R$ ${Number(v).toLocaleString("pt-BR")}` } },
+              x: { grid: { display: false } }
+            }
+          }
+        });
+      } else {
+        ctxCusto.style.display = "none";
+      }
+    }
 
     const els = {
       obras: document.getElementById("dash-obras"), 
@@ -104,7 +179,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
           }
           const barraHtml = `<div style="display:flex; align-items:center; gap:8px;"><div style="flex:1; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;"><div style="width:${perc}%; height:100%; background:${perc >= 100 ? '#10b981' : '#3b82f6'};"></div></div><span style="font-size:11px; font-weight:600; color:#334155;">${perc}%</span></div>`;
-          listaTempo.innerHTML += `<tr><td style="font-weight:600">${o.nome}</td><td>${inicio}</td><td>${diasTexto}</td><td>${barraHtml}</td><td>${statusBadge}</td></tr>`;
+          listaTempo.innerHTML += `<tr><td style="font-weight:600">${escapeHtml(o.nome)}</td><td>${inicio}</td><td>${diasTexto}</td><td>${barraHtml}</td><td>${statusBadge}</td></tr>`;
         });
       }
     }

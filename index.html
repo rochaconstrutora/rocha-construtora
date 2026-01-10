@@ -139,6 +139,10 @@
                     <div class="stat-icon" style="background:#f3e8ff; color:#9333ea;"><span class="material-symbols-outlined">calendar_month</span></div>
                     <div><span class="stat-label">Diárias (Mês)</span><h3 id="dash-diarias">-</h3></div>
                 </div>
+                <div class="md-card stat-card">
+                    <div class="stat-icon" style="background:#e0f2fe; color:#0369a1;"><span class="material-symbols-outlined">paid</span></div>
+                    <div><span class="stat-label">Custo Total (Mês)</span><h3 id="dash-custo">R$ 0,00</h3></div>
+                </div>
             </div>
 
             <div class="dash-split">
@@ -160,7 +164,36 @@
                 </div>
             </div>
 
+            
             <div class="md-card mt-4">
+              <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+                <h3 style="margin:0;">
+                  <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:5px;color:#64748b">paid</span>
+                  Custo Completo por Obra (Mês)
+                </h3>
+                <small class="text-muted" id="dash-custo-periodo"></small>
+              </div>
+
+              <div class="dash-split" style="margin-top:12px;">
+                <div class="md-card chart-card" style="margin:0; box-shadow:none; border:none; padding:0;">
+                  <div class="chart-wrapper" style="height:280px;"><canvas id="dashCustoPorObra"></canvas></div>
+                </div>
+
+                <div class="md-card" style="margin:0; box-shadow:none; border:none; padding:0;">
+                  <div class="table-wrapper" style="max-height:320px; overflow:auto;">
+                    <table class="md-table">
+                      <thead><tr><th>Obra</th><th>RH</th><th>Despesas</th><th>Total</th></tr></thead>
+                      <tbody id="dash-custo-por-obra"><tr><td colspan="4" style="text-align:center; padding:10px;">Carregando...</td></tr></tbody>
+                    </table>
+                  </div>
+                  <div style="text-align:right; font-size:16px; font-weight:700; margin-top:10px;">
+                    Total Geral: <span id="dash-custo-total-geral" style="color:#0f172a;">R$ 0,00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+<div class="md-card mt-4">
               <h3><span class="material-symbols-outlined" style="vertical-align:middle;margin-right:5px;color:#64748b">timelapse</span> Inteligência de Prazos</h3>
               <div class="table-wrapper">
                 <table class="md-table">
@@ -332,8 +365,39 @@
                     <input type="hidden" id="caixa-admin-id">
                     <div class="md-field"><label>Obra</label><select id="caixa-admin-obra"><option value="">Selecione...</option></select></div>
                     <div class="md-field"><label>Data</label><input type="date" id="caixa-admin-data"></div>
-                    <div class="md-field"><label>Descrição</label><input type="text" id="caixa-admin-desc" placeholder="Ex: Cimento Extra"></div>
+
+                    <div class="md-field">
+                      <label>Categoria</label>
+                      <input type="text" id="caixa-admin-categoria" list="lista-categorias-caixa" placeholder="Ex: Combustível">
+                      <datalist id="lista-categorias-caixa">
+                        <option value="Materiais Ordinários"></option>
+                        <option value="Combustível"></option>
+                        <option value="Compras Extras"></option>
+                        <option value="Ferramentas"></option>
+                        <option value="Serviços"></option>
+                        <option value="Transporte"></option>
+                        <option value="Alimentação"></option>
+                        <option value="Outros"></option>
+                      </datalist>
+                    </div>
+
+                    <div class="md-field"><label>Descrição</label><input type="text" id="caixa-admin-desc" placeholder="Ex: Nota de compra - Cimento"></div>
                     <div class="md-field"><label>Valor (R$)</label><input type="text" id="caixa-admin-valor" class="mask-money"></div>
+
+                    <div class="md-field"><label>Fornecedor / Loja</label><input type="text" id="caixa-admin-fornecedor" placeholder="Ex: Posto X / Loja Y"></div>
+                    <div class="md-field"><label>Nº Documento / Nota</label><input type="text" id="caixa-admin-documento" placeholder="Ex: NF 12345"></div>
+
+                    <div class="md-field span-all">
+                      <label>Observações</label>
+                      <textarea id="caixa-admin-observacoes" rows="3" style="width:100%; border:1px solid #e2e8f0; border-radius:10px; padding:10px;" placeholder="Detalhes extras (opcional)"></textarea>
+                    </div>
+
+                    <div class="md-field span-all">
+                      <label>Comprovantes (foto/PDF) — bucket: comprovantes</label>
+                      <input type="file" id="caixa-admin-comprovantes" multiple accept="image/*,application/pdf">
+                      <small class="text-muted">Você pode anexar 1 ou mais arquivos. (Opcional)</small>
+                    </div>
+
                     <div class="md-actions"><button type="submit" class="btn-primary">Salvar Lançamento</button></div>
                 </form>
             </div>
@@ -341,11 +405,81 @@
                 <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:15px;">
                     <div class="md-field" style="flex:1"><label>Filtrar Obra</label><select id="caixa-filtro-obra"><option value="">Todas</option></select></div>
                     <div class="md-field" style="flex:1"><label>Filtrar Mês</label><input type="month" id="caixa-filtro-mes"></div>
+                    <div class="md-field" style="flex:1"><label>Filtrar Categoria</label><input type="text" id="caixa-filtro-categoria" placeholder="Todas"></div>
                     <button class="btn-primary" onclick="carregarCaixaAdmin()" style="height:42px; margin-top:24px;">Filtrar</button>
                 </div>
+
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px; margin:12px 0 18px 0;">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap;">
+                    <div>
+                      <h3 style="margin:0; font-size:16px;">
+                        <span class="material-symbols-outlined" style="vertical-align:middle;margin-right:6px;color:#64748b">paid</span>
+                        Custo Completo no Período
+                      </h3>
+                      <small class="text-muted">Usa o mesmo filtro de Obra e Mês acima.</small>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <button id="btn-caixa-detalhado" class="btn-ghost" onclick="caixaAbrirRelatorioCusto()">Ver detalhado</button>
+                      <button class="btn-secondary" onclick="caixaGerarCustoExcel()">Excel</button>
+                      <button class="btn-primary" onclick="caixaGerarCustoPDF()">PDF</button>
+                    </div>
+                  </div>
+
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px;">
+                    <div class="md-card info-card" style="margin:0;">
+                      <h3 style="font-size:13px; margin:0 0 6px 0;">Despesas (Caixa)</h3>
+                      <p id="caixa-custo-despesas" class="big-number" style="margin:0; color:#ef4444;">R$ 0,00</p>
+                      <small class="text-muted">Somente lançamentos do caixa</small>
+                    </div>
+                    <div class="md-card info-card" style="margin:0;">
+                      <h3 style="font-size:13px; margin:0 0 6px 0;">Mão de Obra (RH)</h3>
+                      <p id="caixa-custo-rh" class="big-number" style="margin:0; color:#1e88e5;">R$ 0,00</p>
+                      <small class="text-muted">Somatório dos pontos</small>
+                    </div>
+                    <div class="md-card info-card" style="margin:0;">
+                      <h3 style="font-size:13px; margin:0 0 6px 0;">Total (Custo Completo)</h3>
+                      <p id="caixa-custo-total" class="big-number" style="margin:0; color:#0f172a;">R$ 0,00</p>
+                      <small class="text-muted">Despesas + RH</small>
+                    </div>
+                  </div>
+
+                  <div class="table-wrapper" style="margin-top:12px;">
+                    <table class="md-table">
+                      <thead><tr><th>Categoria</th><th style="text-align:right;">Total</th></tr></thead>
+                      <tbody id="caixa-custo-categorias">
+                        <tr><td colspan="2" style="text-align:center; padding:10px; color:#94a3b8;">Selecione uma obra e mês para ver o resumo.</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div id="caixa-custo-detalhado" style="display:none; margin-top:14px; border-top:1px dashed #e2e8f0; padding-top:14px;">
+                    <h3 style="margin:0 0 10px 0; font-size:14px;">
+                      <span class="material-symbols-outlined" style="font-size:18px; vertical-align:middle; margin-right:6px; color:#64748b">badge</span>
+                      Mão de Obra (RH) — Detalhado
+                    </h3>
+                    <div class="table-wrapper">
+                      <table class="md-table">
+                        <thead>
+                          <tr>
+                            <th>Funcionário</th>
+                            <th style="text-align:center; width:90px;">Dias</th>
+                            <th style="text-align:center; width:110px;">Extras (h)</th>
+                            <th style="text-align:right; width:140px;">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody id="caixa-custo-rh-detalhe">
+                          <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Clique em "Ver detalhado" para carregar.</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </div>
+
+
                 <div class="table-wrapper">
                     <table class="md-table">
-                        <thead><tr><th>Data</th><th>Obra / Autor</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead>
+                        <thead><tr><th>Data</th><th>Obra / Autor</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th>Comprov.</th><th>Ações</th></tr></thead>
                         <tbody id="tabela-caixa"></tbody>
                     </table>
                 </div>
@@ -382,10 +516,7 @@
                         <button type="button" class="btn-secondary" onclick="baixarFolhaExcel()">Excel</button>
                         <button type="button" class="btn-secondary" onclick="baixarFolhaPDF()">PDF</button>
                         <button type="button" class="btn-secondary" onclick="baixarContracheques()">Recibos</button>
-                        <button type="button" class="btn-primary" style="background:#0f172a;" onclick="gerarRelatorioFinanceiroObra()">
-    💲 Custo Obra
-</button>
-                    </div>
+</div>
                 </form>
             </div>
             <div class="md-card mt-4">

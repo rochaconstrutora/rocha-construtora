@@ -1,4 +1,4 @@
-// obras.js — V Final (Com Endereço Automático e Status Calculado)
+// obras.js — V1.1 (Anti-XSS) (Com Endereço Automático e Status Calculado)
 
 if (document.getElementById("sec-obras")) {
     document.addEventListener("DOMContentLoaded", () => {
@@ -54,8 +54,8 @@ if (document.getElementById("sec-obras")) {
             }
 
             tr.innerHTML = `
-                <td><strong>${o.nome}</strong></td>
-                <td>${cidadeDisplay}</td>
+                <td><strong>${escapeHtml(o.nome)}</strong></td>
+                <td>${escapeHtml(cidadeDisplay)}</td>
                 <td>${o.status === 'ativa' ? "<span style='color:green'>Ativa</span>" : "<span style='color:red'>Inativa</span>"}</td>
                 <td><small>De: ${inicioBR}<br>Até: ${fimBR}</small></td>
                 <td>

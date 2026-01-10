@@ -1,4 +1,4 @@
-// usuarios.js — V Final Blindada
+// usuarios.js — V1.1 (Anti-XSS + Obras Ativas Compat + Sessão Admin)
 document.addEventListener("DOMContentLoaded", () => {
   if (!document.getElementById("sec-usuarios")) return;
 
@@ -26,7 +26,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function carregarObras() {
     if (!selectObra) return;
-    const { data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome");
+    let { data, error } = await supa.from("obras").select("id, nome").eq("status", "ativa").order("nome");
+    if (error) ({ data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome"));
     selectObra.innerHTML = '<option value="">Selecione...</option>';
     if (data) data.forEach((o) => {
         const opt = document.createElement("option");
@@ -48,10 +49,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const tipoLabel = {admin: "Administrador", responsavel: "Responsável", financeiro: "Financeiro", rh: "RH"}[u.tipo] || u.tipo;
       const statusHtml = u.ativo ? "<span style='color:green'>Ativo</span>" : "<span style='color:red'>Inativo</span>";
       tr.innerHTML = `
-        <td>${u.nome}</td>
-        <td>${u.login || "-"}</td>
+        <td>${escapeHtml(u.nome)}</td>
+        <td>${escapeHtml(u.login || "-")}</td>
         <td>${tipoLabel}</td>
-        <td>${u.obras?.nome || "-"}</td>
+        <td>${escapeHtml(u.obras?.nome || "-")}</td>
         <td>${statusHtml}</td>
         <td class="actions-cell">
           <button class="btn-primary btn-sm" onclick="editarUsuario('${u.id}')">Editar</button>
@@ -82,7 +83,12 @@ document.addEventListener("DOMContentLoaded", () => {
          listarUsuarios();
       } else {
          if (!senha) return aviso("Senha é obrigatória.");
+         const { data: { session: adminSession } } = await supa.auth.getSession();
          const { data: authData, error: authError } = await supa.auth.signUp({ email, password: senha });
+         // Evita derrubar a sessão do admin após criar usuário
+         if (adminSession) {
+           try { await supa.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token }); } catch (e) {}
+         }
          if (authError) return erro("Erro Auth: " + authError.message);
          if (!authData || !authData.user) return erro("Erro conexão Login.");
          

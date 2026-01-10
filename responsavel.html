@@ -24,11 +24,11 @@
   <script defer src="assets/js/supabaseClient.js"></script>
   <script defer src="assets/js/auth.js"></script>
   <script defer src="assets/js/utils.js"></script>
-  <script defer src="assets/js/responsavel_app.js"></script> 
+  <script defer src="assets/js/responsavel_app.js"></script>
 
   <style>
     /* Ajustes específicos para Mobile */
-    body { padding-bottom: 80px; background: #f8fafc; } 
+    body { padding-bottom: 80px; background: #f8fafc; }
     .mobile-header {
       background: #ffffff; padding: 15px 20px; border-bottom: 1px solid #e2e8f0;
       position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center;
@@ -36,7 +36,7 @@
     }
     .mobile-header h1 { font-size: 18px; margin: 0; color: #1e293b; font-weight: 700; }
     .mobile-header .badge { font-size: 12px; background: #e0f2fe; color: #0284c7; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
-    
+
     .bottom-nav {
       position: fixed; bottom: 0; left: 0; width: 100%; background: #ffffff; border-top: 1px solid #e2e8f0;
       display: flex; justify-content: space-around; padding: 10px 0; z-index: 100;
@@ -48,16 +48,19 @@
     }
     .nav-btn.active { color: #1e88e5; }
     .nav-btn.active span { font-variation-settings: 'FILL' 1; }
-    
+
     .app-section { display: none; animation: fadeIn 0.3s ease-out; padding: 15px; }
     .app-section.active { display: block; }
-    
+
     .app-card {
       background: white; border-radius: 12px; padding: 16px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #f1f5f9;
     }
     .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #334155; display: flex; align-items: center; gap: 8px; }
     textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; font-family: inherit; resize: vertical; }
+
+    summary { list-style: none; }
+    summary::-webkit-details-marker { display: none; }
   </style>
 </head>
 <body onload="protegerPagina('responsavel')" style="overflow-y: auto !important; height: auto !important;">
@@ -65,7 +68,7 @@
   <header class="mobile-header">
     <div style="display:flex; align-items:center; gap:10px;">
       <img src="assets/img/logo_preto.png" alt="Rocha Construtora" style="height:32px; width:auto;">
-      
+
       <div style="display:flex; flex-direction:column; justify-content:center;">
         <small style="color:#64748b; font-size:11px; line-height:1;">Obra atual:</small>
         <small style="color:#1e293b; font-weight:700; font-size:13px; line-height:1.2;" id="obra-titulo">Carregando...</small>
@@ -78,25 +81,81 @@
     <div class="app-card">
       <div class="card-title"><span class="material-symbols-outlined">how_to_reg</span> Registrar Ponto</div>
       <div class="md-field"><label>Data</label><input type="date" id="ponto-data" class="form-control"></div>
-      <div class="md-field"><label>Funcionário</label><select id="ponto-funcionario" class="form-control"><option>Carregando...</option></select></div>
-      
-      <div style="display:flex; gap:10px;">
-          <div class="md-field" style="flex:1;">
-              <label>Tipo de Diária</label>
-              <select id="ponto-tipo" class="form-control">
+
+      <!-- Registro rápido (checklist) -->
+      <div style="margin-top:6px; padding:10px; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;">
+          <div style="font-weight:700; color:#0f172a; font-size:13px; display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:18px; color:#1e88e5;">checklist</span>
+            Registro rápido (marque os presentes)
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#334155; user-select:none;">
+            <input type="checkbox" id="ponto-marcar-todos">
+            Marcar todos
+          </label>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+          <div class="md-field" style="flex:1; min-width:170px; margin:0;">
+            <label>Tipo padrão</label>
+            <select id="ponto-tipo-padrao" class="form-control">
+              <option value="DIARIA">Diária Completa</option>
+              <option value="MEIA">Meia Diária</option>
+            </select>
+          </div>
+          <div class="md-field" style="width:120px; margin:0;">
+            <label>Extras padrão</label>
+            <input type="number" id="ponto-extras-padrao" class="form-control" placeholder="0" min="0" step="0.5">
+          </div>
+          <button class="btn-ghost" style="height:42px;" onclick="aplicarPadraoPonto()">Aplicar padrão</button>
+        </div>
+
+        <div class="table-wrapper" style="margin-top:10px;">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th style="width:65px; text-align:center;">Pres.</th>
+                <th>Funcionário</th>
+                <th style="width:140px;">Tipo</th>
+                <th style="width:100px;">Extras</th>
+              </tr>
+            </thead>
+            <tbody id="ponto-checklist"><tr><td colspan="4">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+
+        <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="registrarPontoEmLote()">Registrar Selecionados</button>
+
+        <!-- Mantém o modo antigo como alternativa (não quebra seu fluxo atual) -->
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer; font-size:12px; color:#334155; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-outlined" style="font-size:18px; color:#64748b;">tune</span>
+            Registro individual (opcional)
+          </summary>
+          <div style="margin-top:10px;">
+            <div class="md-field"><label>Funcionário</label><select id="ponto-funcionario" class="form-control"><option>Carregando...</option></select></div>
+
+            <div style="display:flex; gap:10px;">
+              <div class="md-field" style="flex:1;">
+                <label>Tipo de Diária</label>
+                <select id="ponto-tipo" class="form-control">
                   <option value="">Selecione...</option>
                   <option value="DIARIA">Diária Completa</option>
                   <option value="MEIA">Meia Diária</option>
-              </select>
-          </div>
-          <div class="md-field" style="width: 100px;">
-              <label>H. Extras</label>
-              <input type="number" id="ponto-extras" class="form-control" placeholder="0" min="0" step="0.5">
-          </div>
-      </div>
+                </select>
+              </div>
+              <div class="md-field" style="width: 100px;">
+                <label>H. Extras</label>
+                <input type="number" id="ponto-extras" class="form-control" placeholder="0" min="0" step="0.5">
+              </div>
+            </div>
 
-      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="registrarPonto()">Confirmar Presença</button>
+            <button class="btn-secondary" style="width:100%; margin-top:10px;" onclick="registrarPonto()">Confirmar Presença (individual)</button>
+          </div>
+        </details>
+      </div>
     </div>
+
     <div class="app-card">
         <div class="card-title">Registros de Hoje</div>
         <div class="table-wrapper">
@@ -141,17 +200,61 @@
   <section id="tab-gastos" class="app-section">
     <div class="app-card">
       <div class="card-title"><span class="material-symbols-outlined">payments</span> Lançar Despesa</div>
-      <div class="md-field"><label>Descrição (O que comprou?)</label><input type="text" id="gasto-desc" class="form-control" placeholder="Ex: Gasolina, Almoço"></div>
-      <div class="md-field"><label>Valor (R$)</label><input type="text" id="gasto-valor" class="form-control mask-money" placeholder="R$ 0,00"></div>
-      <div class="md-field"><label>Data</label><input type="date" id="gasto-data" class="form-control"></div>
+
+      <div class="md-field">
+        <label>Categoria</label>
+        <input type="text" id="gasto-categoria" list="lista-categorias-caixa" class="form-control" placeholder="Ex: Combustível">
+        <datalist id="lista-categorias-caixa">
+          <option value="Materiais Ordinários"></option>
+          <option value="Combustível"></option>
+          <option value="Compras Extras"></option>
+          <option value="Ferramentas"></option>
+          <option value="Serviços"></option>
+          <option value="Transporte"></option>
+          <option value="Alimentação"></option>
+          <option value="Outros"></option>
+        </datalist>
+      </div>
+
+      <div class="md-field">
+        <label>Descrição (O que comprou?)</label>
+        <input type="text" id="gasto-desc" class="form-control" placeholder="Ex: Nota de compra - Cimento, Gasolina, Almoço">
+      </div>
+
+      <div class="md-field" style="display:flex; gap:10px;">
+        <div style="flex:1">
+          <label>Valor (R$)</label>
+          <input type="text" id="gasto-valor" class="form-control mask-money" placeholder="R$ 0,00">
+        </div>
+        <div style="flex:1">
+          <label>Data</label>
+          <input type="date" id="gasto-data" class="form-control">
+        </div>
+      </div>
+
+      <div class="md-field"><label>Fornecedor / Loja</label><input type="text" id="gasto-fornecedor" class="form-control" placeholder="Ex: Posto X / Loja Y (opcional)"></div>
+      <div class="md-field"><label>Nº Documento / Nota</label><input type="text" id="gasto-documento" class="form-control" placeholder="Ex: NF 12345 (opcional)"></div>
+
+      <div class="md-field">
+        <label>Observações</label>
+        <input type="text" id="gasto-obs" class="form-control" placeholder="Detalhes extras (opcional)">
+      </div>
+
+      <div class="md-field">
+        <label>Comprovantes (foto/PDF)</label>
+        <input type="file" id="gasto-comprovantes" class="form-control" multiple accept="image/*,application/pdf">
+        <small style="color:#64748b;">Opcional — você pode anexar 1 ou mais arquivos.</small>
+      </div>
+
       <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="lancarGasto()">Salvar Despesa</button>
     </div>
+
     <div class="app-card">
         <div class="card-title">Meus Lançamentos (Mês)</div>
         <div class="table-wrapper">
             <table class="md-table">
-                <thead><tr><th>Dia</th><th>Desc.</th><th>R$</th><th>X</th></tr></thead>
-                <tbody id="lista-gastos"><tr><td colspan="4">...</td></tr></tbody>
+                <thead><tr><th>Dia</th><th>Cat.</th><th>Desc.</th><th>R$</th><th>Comp.</th><th>X</th></tr></thead>
+                <tbody id="lista-gastos"><tr><td colspan="6">...</td></tr></tbody>
             </table>
         </div>
     </div>

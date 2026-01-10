@@ -1,4 +1,4 @@
-// auth.js — Permissões Ajustadas (Financeiro sem Ponto)
+// auth.js — Permissões Ajustadas + Anti-XSS
 
 async function getUsuarioAtual() {
   const { data: { user }, error } = await supa.auth.getUser();
@@ -49,7 +49,7 @@ async function protegerPagina(tiposPermitidos = null) {
           financeiro: ["dashboard", "relatorios", "materiais", "caixa", "diario"], 
           
           // RH VÊ Ponto
-          rh: ["funcionarios", "relatorios", "ponto"], 
+          rh: ["funcionarios", "relatorios", "ponto", "caixa"], 
           
           responsavel: [] 
       };
@@ -67,7 +67,15 @@ async function protegerPagina(tiposPermitidos = null) {
   const elNome = document.querySelector(".md-user-pill span:last-child");
   if(elNome) elNome.textContent = usuario.perfil.nome.split(" ")[0];
   const elCargo = document.querySelector(".md-chip");
-  if(elCargo) elCargo.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">verified_user</span> ${tipo.toUpperCase()}`;
+  if(elCargo) {
+    elCargo.innerHTML = "";
+    const ic = document.createElement("span");
+    ic.className = "material-symbols-outlined";
+    ic.style.fontSize = "16px";
+    ic.textContent = "verified_user";
+    elCargo.appendChild(ic);
+    elCargo.appendChild(document.createTextNode(" " + String(tipo || "").toUpperCase()));
+  }
 
   return usuario;
 }

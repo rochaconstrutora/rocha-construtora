@@ -1,4 +1,4 @@
-// funcionarios.js — V Final (Com Cidade e Estado)
+// funcionarios.js — V1.1 (Anti-XSS + Obras Ativas Compat) (Com Cidade e Estado)
 
 document.addEventListener("DOMContentLoaded", () => {
   carregarFuncionarios();
@@ -54,7 +54,8 @@ async function carregarObrasFuncionario() {
   const select = document.getElementById("funcionario-obra");
   if (!select) return;
   select.innerHTML = "";
-  const { data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome");
+  let { data, error } = await supa.from("obras").select("id, nome").eq("status", "ativa").order("nome");
+  if (error) ({ data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome"));
   let opt = document.createElement("option"); opt.value = ""; opt.textContent = "Selecione a obra"; select.appendChild(opt);
   if(data) data.forEach(o => { let option = document.createElement("option"); option.value = o.id; option.textContent = o.nome; select.appendChild(option); });
 }
@@ -128,10 +129,10 @@ async function carregarFuncionarios() {
   data.forEach(f => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${f.nome}</td>
-      <td>${f.apelido || "-"}</td>
-      <td>${f.funcoes?.nome || "-"}</td>
-      <td>${f.obras?.nome || "-"}</td>
+      <td>${escapeHtml(f.nome)}</td>
+      <td>${escapeHtml(f.apelido || "-")}</td>
+      <td>${escapeHtml(f.funcoes?.nome || "-")}</td>
+      <td>${escapeHtml(f.obras?.nome || "-")}</td>
       <td>${f.ativo ? "<span style='color:green'>Ativo</span>" : "<span style='color:red'>Inativo</span>"}</td>
       <td class="actions-cell">
         <button class="btn-primary btn-sm" onclick="editarFuncionario('${f.id}')">Editar</button>

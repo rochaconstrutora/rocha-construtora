@@ -1,4 +1,4 @@
-// assets/js/utils.js — V15 (Corrigido e Estável)
+// assets/js/utils.js — V16 (Corrigido e Estável)
 
 // 1. NOTIFICAÇÕES (TOAST)
 function showToast(message, type = "info") {
@@ -8,15 +8,27 @@ function showToast(message, type = "info") {
     container.id = "toast-container";
     document.body.appendChild(container);
   }
+
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
-  let icon = type === "success" ? "check_circle" : type === "error" ? "error" : "warning";
-  toast.innerHTML = `<span class="material-symbols-outlined">${icon}</span><span>${message}</span>`;
+
+  const icon = document.createElement("span");
+  icon.className = "material-symbols-outlined";
+  icon.textContent = type === "success" ? "check_circle" : type === "error" ? "error" : "warning";
+
+  const msg = document.createElement("span");
+  msg.textContent = String(message ?? "");
+
+  toast.appendChild(icon);
+  toast.appendChild(msg);
+
   container.appendChild(toast);
+
+  setTimeout(() => toast.classList.add("show"), 50);
   setTimeout(() => {
-    toast.style.animation = "fadeOut 0.5s ease-out forwards";
+    toast.classList.remove("show");
     setTimeout(() => toast.remove(), 500);
-  }, 3000);
+  }, 3500);
 }
 
 // Exportando para window
@@ -153,6 +165,70 @@ window.aplicarMascaraPixInput = (valor) => {
 };
 
 // 4. OUTRAS UTILIDADES
+// --- SEGURANÇA (ANTI-XSS) ---
+window.escapeHtml = (input = "") => {
+  const s = String(input);
+  return s.replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
+};
+
+window.sanitizeUrl = (url = "") => {
+  try {
+    const u = String(url || "").trim();
+    // Permite apenas http/https para links externos e data/blob para imagens locais, se necessário
+    if (u.startsWith("http://") || u.startsWith("https://")) return u;
+    if (u.startsWith("data:image/")) return u;
+    if (u.startsWith("blob:")) return u;
+  } catch (e) {}
+  return "";
+};
+
+// --- DATAS (FUSO LOCAL - BRASIL) ---
+window.hojeLocalISO = () => {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+};
+
+window.mesLocalISO = () => {
+  const d = new Date();
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 7); // YYYY-MM
+};
+
+// --- FOTOS DO DIÁRIO (URL pública antiga OU path no Storage) ---
+window.parseFotosCampo = (campo) => {
+  if (!campo) return [];
+  if (Array.isArray(campo)) return campo.filter(Boolean);
+  const raw = String(campo);
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr.filter(Boolean);
+  } catch (e) {}
+  return raw ? [raw] : [];
+};
+
+// Retorna uma URL pronta para exibir: se já for http(s), devolve; se for path, gera Signed URL.
+window.resolverUrlFotoDiario = async (bucket, pathOuUrl, expiresIn = 3600) => {
+  if (!pathOuUrl) return "";
+  const s = String(pathOuUrl);
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:image/") || s.startsWith("blob:")) {
+    return window.sanitizeUrl(s);
+  }
+  try {
+    const { data, error } = await supa.storage.from(bucket).createSignedUrl(s, expiresIn);
+    if (error) return "";
+    return window.sanitizeUrl(data?.signedUrl || "");
+  } catch (e) {
+    return "";
+  }
+};
+
 window.toggleMenu = () => {
   const sidebar = document.getElementById("main-sidebar");
   const overlay = document.querySelector(".sidebar-overlay");

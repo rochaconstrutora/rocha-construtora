@@ -1,4 +1,4 @@
-// funcoes.js — V Final
+// funcoes.js — V1.1 (Anti-XSS)
 document.addEventListener("DOMContentLoaded", () => {
   carregarFuncoes();
   const form = document.getElementById("form-funcoes");
@@ -64,7 +64,7 @@ async function carregarFuncoes() {
     const valHora = (f.valor_hora || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
     tr.innerHTML = `
-      <td><strong>${f.nome}</strong></td>
+      <td><strong>${escapeHtml(f.nome)}</strong></td>
       <td>${valMeia}</td>
       <td>${valDiaria}</td>
       <td style="color:#0284c7; font-weight:500;">${valHora}</td>

@@ -1,4 +1,4 @@
-// relatorios.js — V15 (Corrigido)
+// relatorios.js — V1.1 (Anti-XSS + Obras Ativas Compat) — V15 (Corrigido)
 
 const DADOS_EMPRESA = {
   nome: "ROCHA CONSTRUTORA LTDA",
@@ -39,7 +39,8 @@ async function carregarObrasRelatorio() {
   if (!select) return;
   if(select.options.length <= 1) {
       select.innerHTML = "<option value=''>Todas as obras</option>";
-      const { data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome");
+      let { data, error } = await supa.from("obras").select("id, nome").eq("status", "ativa").order("nome");
+  if (error) ({ data } = await supa.from("obras").select("id, nome").eq("ativo", true).order("nome"));
       if(data) data.forEach(o => {
         let opt = document.createElement("option");
         opt.value = o.id; opt.textContent = o.nome; select.appendChild(opt);
@@ -177,8 +178,8 @@ async function gerarRelatorioTela() {
 
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><div style="font-weight:600; color:#0f172a;">${f.nome}</div><div style="font-size:11px; color:#64748b;">${f.funcao} • ${f.cpf}</div><div style="font-size:11px; color:#64748b;">${infoPag}</div></td>
-      <td>${f.obra}</td>
+      <td><div style="font-weight:600; color:#0f172a;">${escapeHtml(f.nome)}</div><div style="font-size:11px; color:#64748b;">${f.funcao} • ${f.cpf}</div><div style="font-size:11px; color:#64748b;">${escapeHtml(infoPag)}</div></td>
+      <td>${escapeHtml(f.obra)}</td>
       <td><div style="font-size:13px;">${f.qtd_diarias} <span style="color:#64748b; font-size:11px;">Completas</span></div><div style="font-size:13px;">${f.qtd_meia} <span style="color:#64748b; font-size:11px;">Meias</span></div>${extrasDisplay}</td>
       <td style="font-weight:bold; color:#1e88e5;">${f.total.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
     `;
@@ -189,57 +190,307 @@ async function gerarRelatorioTela() {
   sucesso("Relatório gerado!");
 }
 
-// === NOVO: RELATÓRIO FINANCEIRO CONSOLIDADO ===
+// === CUSTO COMPLETO DA OBRA (RH + DESPESAS) ===
+
+// Retorna {inicio, fim, texto}
+function obterPeriodoSelecionado() {
+  const tipo = document.getElementById("relatorio-tipo")?.value || "mensal";
+
+  if (tipo === "quinzena") {
+    const inicio = document.getElementById("rel-q-inicio")?.value;
+    const fim = document.getElementById("rel-q-fim")?.value;
+    if (!inicio || !fim) return null;
+    return { inicio, fim, texto: `${formatarDataBR(inicio)} a ${formatarDataBR(fim)}` };
+  }
+
+  if (tipo === "anual") {
+    const ano = Number(document.getElementById("rel-ano")?.value);
+    if (!ano) return null;
+    return { inicio: `${ano}-01-01`, fim: `${ano}-12-31`, texto: `Ano ${ano}` };
+  }
+
+  // mensal (padrão)
+  const mes = Number(document.getElementById("rel-mes")?.value || (new Date().getMonth() + 1));
+  const ano = Number(document.getElementById("rel-ano-mensal")?.value || new Date().getFullYear());
+  if (!mes || !ano) return null;
+
+  const mesStr = String(mes).padStart(2, "0");
+  const ultimoDia = new Date(ano, mes, 0).getDate();
+  return { inicio: `${ano}-${mesStr}-01`, fim: `${ano}-${mesStr}-${String(ultimoDia).padStart(2, "0")}`, texto: `${mesStr}/${ano}` };
+}
+
+async function buscarDadosCustoObra() {
+  const obraId = document.getElementById("relatorio-obra")?.value;
+  if (!obraId) {
+    aviso("Selecione uma obra.");
+    return null;
+  }
+
+  const periodo = obterPeriodoSelecionado();
+  if (!periodo) {
+    aviso("Selecione um período válido.");
+    return null;
+  }
+
+  // Obra
+  const { data: obra, error: errObra } = await supa.from("obras").select("nome").eq("id", obraId).single();
+  if (errObra || !obra) {
+    erro("Não foi possível carregar a obra.");
+    return null;
+  }
+
+  // RH: soma de registros no período
+  const { data: regs, error: errRegs } = await supa
+    .from("registros")
+    .select("valor, funcionario_id, funcionarios(nome)")
+    .eq("obra_id", obraId)
+    .gte("data", periodo.inicio)
+    .lte("data", periodo.fim);
+
+  if (errRegs) {
+    console.error(errRegs);
+    erro("Erro ao buscar RH: " + errRegs.message);
+    return null;
+  }
+
+  const totalRH = (regs || []).reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+
+  // RH por funcionário
+  const rhPorFuncionario = {};
+  (regs || []).forEach((r) => {
+    const nome = r.funcionarios?.nome || "—";
+    rhPorFuncionario[nome] = (rhPorFuncionario[nome] || 0) + (Number(r.valor) || 0);
+  });
+
+  const rhLista = Object.entries(rhPorFuncionario)
+    .map(([nome, total]) => ({ nome, total }))
+    .sort((a, b) => b.total - a.total);
+
+  // DESPESAS: caixa_obra no período
+  const { data: gastos, error: errGastos } = await supa
+    .from("caixa_obra")
+    .select("id, data, descricao, valor, categoria, fornecedor, documento, observacoes")
+    .eq("obra_id", obraId)
+    .gte("data", periodo.inicio)
+    .lte("data", periodo.fim)
+    .order("data", { ascending: true });
+
+  if (errGastos) {
+    console.error(errGastos);
+    erro("Erro ao buscar despesas: " + errGastos.message);
+    return null;
+  }
+
+  const totalGastos = (gastos || []).reduce((acc, g) => acc + (Number(g.valor) || 0), 0);
+
+  // Gastos por categoria
+  const catMap = {};
+  (gastos || []).forEach((g) => {
+    const cat = g.categoria || "Sem categoria";
+    catMap[cat] = (catMap[cat] || 0) + (Number(g.valor) || 0);
+  });
+
+  const catLista = Object.entries(catMap)
+    .map(([categoria, total]) => ({ categoria, total }))
+    .sort((a, b) => b.total - a.total);
+
+  return {
+    obraId,
+    obraNome: obra.nome,
+    periodoTexto: periodo.texto,
+    inicio: periodo.inicio,
+    fim: periodo.fim,
+    totalRH,
+    totalGastos,
+    totalGeral: totalRH + totalGastos,
+    catLista,
+    gastos: gastos || [],
+    rhLista
+  };
+}
+
 async function gerarRelatorioFinanceiroObra() {
-    const obraId = document.getElementById("relatorio-obra").value;
-    if(!obraId) return aviso("Selecione uma Obra específica para este relatório.");
+  const tabela = document.getElementById("tabela-relatorio");
+  const totalEl = document.getElementById("relatorio-total");
+  if (!tabela || !totalEl) return;
 
-    const btn = document.querySelector("button[onclick='gerarRelatorioFinanceiroObra()']");
-    if(btn) btn.textContent = "Calculando...";
+  const dados = await buscarDadosCustoObra();
+  if (!dados) return;
 
-    const { data: obra } = await supa.from("obras").select("nome").eq("id", obraId).single();
-    
-    // Busca Mão de Obra (Tudo)
-    const { data: registros } = await supa.from("registros").select("valor").eq("obra_id", obraId);
-    
-    // Busca Caixa (Tudo)
-    const { data: caixa } = await supa.from("caixa_obra").select("valor").eq("obra_id", obraId);
-    
-    // Busca Materiais (Apenas contagem, pois não temos preço ainda)
-    const { count: qtdMateriais } = await supa.from("solicitacoes_materiais").select("*", { count: 'exact', head: true }).eq("obra_id", obraId);
+  // Monta tabela na tela (Resumo por Categoria + Total)
+  const thead = tabela.querySelector("thead");
+  const tbody = tabela.querySelector("tbody");
+  if (thead) thead.innerHTML = `<tr><th>Categoria</th><th>Total</th></tr>`;
+  if (tbody) tbody.innerHTML = "";
 
-    const totalRH = (registros || []).reduce((acc, r) => acc + Number(r.valor), 0);
-    const totalCaixa = (caixa || []).reduce((acc, c) => acc + Number(c.valor), 0);
-    const totalGeral = totalRH + totalCaixa;
+  // Linhas de categorias
+  if (!dados.catLista.length) {
+    tbody.innerHTML = `<tr><td colspan="2" style="text-align:center;">Sem despesas no período</td></tr>`;
+  } else {
+    dados.catLista.forEach((c) => {
+      tbody.innerHTML += `<tr>
+        <td style="font-weight:600">${escapeHtml(c.categoria)}</td>
+        <td style="text-align:right; color:#ef4444; font-weight:700">${Number(c.total).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+      </tr>`;
+    });
+  }
 
-    const tbody = document.querySelector("#tabela-relatorio tbody");
-    const thead = document.querySelector("#tabela-relatorio thead");
-    const totalEl = document.getElementById("relatorio-total");
+  // Rodapé com totais
+  totalEl.textContent = `${dados.totalGeral.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} (RH: ${dados.totalRH.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} | Despesas: ${dados.totalGastos.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})})`;
 
-    // Ajusta cabeçalho da tabela dinamicamente
-    thead.innerHTML = `<tr><th>Categoria de Custo</th><th>Detalhes</th><th>Valor Total</th></tr>`;
-    tbody.innerHTML = `
-        <tr>
-            <td><strong>👷 Mão de Obra</strong></td>
-            <td>Soma de todas as diárias e extras</td>
-            <td style="color:#0f172a;">${totalRH.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
-        </tr>
-        <tr>
-            <td><strong>🧱 Gastos de Caixa</strong></td>
-            <td>Compras locais, combustível, refeições</td>
-            <td style="color:#d97706;">${totalCaixa.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
-        </tr>
-        <tr>
-            <td><strong>🚛 Materiais Solicitados</strong></td>
-            <td>${qtdMateriais} pedidos (Custo não calculado - sem preço)</td>
-            <td>R$ 0,00*</td>
-        </tr>
-    `;
+  sucesso(`Custo completo: ${dados.obraNome} — ${dados.periodoTexto}`);
+}
 
-    if(totalEl) totalEl.innerHTML = `CUSTO TOTAL: <span style="color:#b91c1c; font-size:24px;">${totalGeral.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>`;
-    
-    sucesso(`Custo consolidado da obra: ${obra.nome}`);
-    if(btn) btn.innerHTML = "💲 Custo Obra";
+// PDF do custo completo (igual estilo dos outros relatórios)
+async function baixarCustoObraPDF() {
+  try {
+    const dados = await buscarDadosCustoObra();
+    if (!dados) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait" });
+    const logoImg = await getLogoBase64();
+
+    // Cabeçalho
+    doc.setFillColor(255, 255, 255); doc.rect(0, 0, 210, 35, 'F');
+    if (logoImg) { try { doc.addImage(logoImg, 'PNG', 14, 6, 20, 20); } catch(e) {} }
+
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+    doc.text(`${DADOS_EMPRESA.nome}`, 38, 14);
+    doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+    doc.text(`CNPJ: ${DADOS_EMPRESA.cnpj}`, 38, 19);
+    doc.text(`${DADOS_EMPRESA.endereco}`, 38, 23);
+
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("RELATÓRIO — CUSTO COMPLETO DA OBRA", 196, 14, {align:'right'});
+
+    doc.setTextColor(37, 99, 235); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(`OBRA: ${dados.obraNome.toUpperCase()}`, 196, 20, {align:'right'});
+
+    doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    doc.text(`Período: ${dados.periodoTexto}`, 196, 25, {align:'right'});
+
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(14, 32, 196, 32);
+
+    // Resumo (cards)
+    const y0 = 38;
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(14, y0, 182, 18, 2, 2, "F");
+    doc.setTextColor(30, 41, 59); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+    doc.text(`RH: ${dados.totalRH.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`, 18, y0 + 7);
+    doc.text(`Despesas: ${dados.totalGastos.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`, 18, y0 + 13);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`TOTAL: ${dados.totalGeral.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`, 196, y0 + 11, {align:'right'});
+
+    // Tabela por categoria
+    const catBody = (dados.catLista || []).map(c => [
+      String(c.categoria || "—"),
+      Number(c.total || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+    ]);
+
+    doc.autoTable({
+      startY: y0 + 24,
+      head: [['Categoria', 'Total']],
+      body: catBody.length ? catBody : [['Sem despesas no período', '-']],
+      theme: 'striped',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3, valign: 'middle' },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    // Despesas detalhadas (limita p/ não estourar)
+    const maxLinhas = 160;
+    const detalhes = (dados.gastos || []).slice(0, maxLinhas).map(g => [
+      formatarDataBR(g.data),
+      String(g.categoria || "—"),
+      String(g.descricao || "—"),
+      Number(g.valor || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+    ]);
+
+    doc.addPage();
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("DESPESAS DETALHADAS", 14, 16);
+
+    doc.autoTable({
+      startY: 22,
+      head: [['Data', 'Categoria', 'Descrição', 'Valor']],
+      body: detalhes.length ? detalhes : [['-', '-', 'Sem despesas', '-']],
+      theme: 'striped',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 2, overflow: 'ellipsize' },
+      columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 32 }, 2: { cellWidth: 96 }, 3: { cellWidth: 30, halign: 'right', fontStyle: 'bold' } }
+    });
+
+    // RH por funcionário (top 100)
+    doc.addPage();
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("RH POR FUNCIONÁRIO (TOTAL NO PERÍODO)", 14, 16);
+
+    const rhBody = (dados.rhLista || []).slice(0, 120).map(r => [
+      String(r.nome || "—"),
+      Number(r.total || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+    ]);
+
+    doc.autoTable({
+      startY: 22,
+      head: [['Funcionário', 'Total']],
+      body: rhBody.length ? rhBody : [['-', '-']],
+      theme: 'striped',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 9, cellPadding: 3, overflow: 'ellipsize' },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+    });
+
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(150);
+    doc.text(`Emitido em: ${new Date().toLocaleString('pt-BR')}`, 196, 290, {align:'right'});
+
+    doc.save(`Custo_Obra_${dados.obraNome.replace(/[^a-zA-Z0-9]/g,'_')}_${dados.periodoTexto.replace(/[^a-zA-Z0-9]/g,'_')}.pdf`);
+    sucesso("PDF de custo baixado!");
+  } catch (e) {
+    console.error(e);
+    erro("Erro PDF Custo: " + e.message);
+  }
+}
+
+async function baixarCustoObraExcel() {
+  try {
+    const dados = await buscarDadosCustoObra();
+    if (!dados) return;
+
+    const wb = XLSX.utils.book_new();
+
+    // Resumo
+    const resumo = [
+      { "Obra": dados.obraNome, "Período": dados.periodoTexto, "RH": dados.totalRH, "Despesas": dados.totalGastos, "Total": dados.totalGeral }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo), "Resumo");
+
+    // Categorias
+    const categorias = (dados.catLista || []).map(c => ({ "Categoria": c.categoria, "Total": c.total }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(categorias), "Categorias");
+
+    // Despesas
+    const despesas = (dados.gastos || []).map(g => ({
+      "Data": g.data,
+      "Categoria": g.categoria || "",
+      "Descrição": g.descricao || "",
+      "Fornecedor": g.fornecedor || "",
+      "Documento": g.documento || "",
+      "Observações": g.observacoes || "",
+      "Valor": Number(g.valor) || 0
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(despesas), "Despesas");
+
+    // RH por funcionário
+    const rh = (dados.rhLista || []).map(r => ({ "Funcionário": r.nome, "Total": r.total }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rh), "RH");
+
+    XLSX.writeFile(wb, `Custo_Obra_${dados.obraNome.replace(/[^a-zA-Z0-9]/g,'_')}_${dados.periodoTexto.replace(/[^a-zA-Z0-9]/g,'_')}.xlsx`);
+    sucesso("Excel de custo gerado!");
+  } catch (e) {
+    console.error(e);
+    erro("Erro Excel Custo: " + e.message);
+  }
 }
 
 async function getLogoBase64() {
@@ -299,7 +550,7 @@ async function baixarFolhaPDF() {
       if(f.qtd_extras > 0) qtdDetalhes += ` +${f.qtd_extras}h`;
 
       return [
-        `${f.nome}`.toUpperCase(),
+        `${escapeHtml(f.nome)}`.toUpperCase(),
         `${f.funcao || '-'}`,
         `${f.cpf || '-'}`, 
         pag, 
@@ -404,7 +655,7 @@ async function baixarContracheques() {
 
       doc.setFillColor(248, 250, 252); doc.rect(11, y + 32, 188, 16, 'F');
       doc.setFont("helvetica", "bold"); doc.text("Funcionário:", 15, y + 38);
-      doc.setFont("helvetica", "normal"); doc.text(`${f.nome}`.toUpperCase(), 40, y + 38);
+      doc.setFont("helvetica", "normal"); doc.text(`${escapeHtml(f.nome)}`.toUpperCase(), 40, y + 38);
       doc.setFont("helvetica", "bold"); doc.text("Cargo:", 15, y + 44);
       doc.setFont("helvetica", "normal"); doc.text(`${f.funcao || '-'}`, 40, y + 44);
       doc.setFont("helvetica", "bold"); doc.text("CPF:", 120, y + 38);
@@ -447,7 +698,7 @@ async function baixarContracheques() {
       doc.setFontSize(8); doc.setFont("helvetica", "normal");
       doc.text("Declaro ter recebido a importância líquida acima.", 15, y + 110);
       doc.setDrawColor(0); doc.line(50, y + 125, 150, y + 125);
-      doc.text(`${f.nome}`.toUpperCase(), 100, y + 129, { align: "center" });
+      doc.text(`${escapeHtml(f.nome)}`.toUpperCase(), 100, y + 129, { align: "center" });
       
       y += 145; contador++;
     }
