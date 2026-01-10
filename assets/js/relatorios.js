@@ -7,6 +7,14 @@ const DADOS_EMPRESA = {
   contato: "rochaconstrutora23@gmail.com | (79) 99653-4829"
 };
 
+
+function formatarPagamentoCusto(item) {
+  const forma = (item?.forma_pagamento || "").trim();
+  const parcelas = Number(item?.parcelas || 0);
+  if (!forma) return "";
+  if (forma === "Cartão de Crédito" && parcelas > 0) return `${forma} (${parcelas}x)`;
+  return forma;
+}
 document.addEventListener("DOMContentLoaded", () => {
   if(!document.getElementById("relatorio-tipo")) return;
   
@@ -269,7 +277,7 @@ async function buscarDadosCustoObra() {
   // DESPESAS: caixa_obra no período
   const { data: gastos, error: errGastos } = await supa
     .from("caixa_obra")
-    .select("id, data, descricao, valor, categoria, fornecedor, documento, observacoes")
+    .select("id, data, descricao, valor, categoria, fornecedor, documento, observacoes, forma_pagamento, parcelas")
     .eq("obra_id", obraId)
     .gte("data", periodo.inicio)
     .lte("data", periodo.fim)
@@ -281,11 +289,18 @@ async function buscarDadosCustoObra() {
     return null;
   }
 
-  const totalGastos = (gastos || []).reduce((acc, g) => acc + (Number(g.valor) || 0), 0);
+
+  // Se o relatório foi chamado a partir do Caixa, podemos aplicar um filtro de categoria (opcional)
+  const filtroCategoria = (window.__custoFiltroCategoria || "").trim();
+  const gastosFiltrados = filtroCategoria
+    ? (gastos || []).filter((g) => String(g.categoria || "").trim() === filtroCategoria)
+    : (gastos || []);
+
+  const totalGastos = (gastosFiltrados || []).reduce((acc, g) => acc + (Number(g.valor) || 0), 0);
 
   // Gastos por categoria
   const catMap = {};
-  (gastos || []).forEach((g) => {
+  (gastosFiltrados || []).forEach((g) => {
     const cat = g.categoria || "Sem categoria";
     catMap[cat] = (catMap[cat] || 0) + (Number(g.valor) || 0);
   });
@@ -304,7 +319,7 @@ async function buscarDadosCustoObra() {
     totalGastos,
     totalGeral: totalRH + totalGastos,
     catLista,
-    gastos: gastos || [],
+    gastos: gastosFiltrados || [],
     rhLista
   };
 }
@@ -355,25 +370,28 @@ async function baixarCustoObraPDF() {
     doc.setFillColor(255, 255, 255); doc.rect(0, 0, 210, 35, 'F');
     if (logoImg) { try { doc.addImage(logoImg, 'PNG', 14, 6, 20, 20); } catch(e) {} }
 
-    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(14);
-    doc.text(`${DADOS_EMPRESA.nome}`, 38, 14);
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold");
+    // Evita sobreposição com o título quando o nome da empresa é grande
+    const nomeLines = doc.splitTextToSize(String(DADOS_EMPRESA.nome || ""), 92);
+    doc.setFontSize(12);
+    doc.text(nomeLines, 38, 12);
+    const yNomeFim = 12 + (nomeLines.length - 1) * 5;
     doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.setFontSize(8);
-    doc.text(`CNPJ: ${DADOS_EMPRESA.cnpj}`, 38, 19);
-    doc.text(`${DADOS_EMPRESA.endereco}`, 38, 23);
-
-    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-    doc.text("RELATÓRIO — CUSTO COMPLETO DA OBRA", 196, 14, {align:'right'});
+    doc.text(`CNPJ: ${DADOS_EMPRESA.cnpj}`, 38, yNomeFim + 6);
+    doc.text(`${DADOS_EMPRESA.endereco}`, 38, yNomeFim + 10);
+doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(12);
+    doc.text("RELATÓRIO — CUSTO COMPLETO DA OBRA", 196, 12, {align:'right'});
 
     doc.setTextColor(37, 99, 235); doc.setFontSize(10); doc.setFont("helvetica", "bold");
-    doc.text(`OBRA: ${dados.obraNome.toUpperCase()}`, 196, 20, {align:'right'});
+    doc.text(`OBRA: ${dados.obraNome.toUpperCase()}`, 196, 18, {align:'right'});
 
     doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`Período: ${dados.periodoTexto}`, 196, 25, {align:'right'});
+    doc.text(`Período: ${dados.periodoTexto}`, 196, 23, {align:'right'});
 
-    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(14, 32, 196, 32);
+    doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(14, 36, 196, 36);
 
     // Resumo (cards)
-    const y0 = 38;
+    const y0 = 42;
     doc.setFillColor(241, 245, 249);
     doc.roundedRect(14, y0, 182, 18, 2, 2, "F");
     doc.setTextColor(30, 41, 59); doc.setFontSize(10); doc.setFont("helvetica", "bold");
@@ -403,6 +421,8 @@ async function baixarCustoObraPDF() {
     const detalhes = (dados.gastos || []).slice(0, maxLinhas).map(g => [
       formatarDataBR(g.data),
       String(g.categoria || "—"),
+      String(g.fornecedor || "—"),
+      String(formatarPagamentoCusto(g) || "—"),
       String(g.descricao || "—"),
       Number(g.valor || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
     ]);
@@ -413,12 +433,19 @@ async function baixarCustoObraPDF() {
 
     doc.autoTable({
       startY: 22,
-      head: [['Data', 'Categoria', 'Descrição', 'Valor']],
-      body: detalhes.length ? detalhes : [['-', '-', 'Sem despesas', '-']],
+      head: [['Data', 'Categoria', 'Fornecedor/Loja', 'Pagamento', 'Descrição', 'Valor']],
+      body: detalhes.length ? detalhes : [['-', '-', '-', '-', 'Sem despesas', '-']],
       theme: 'striped',
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
-      styles: { fontSize: 8, cellPadding: 2, overflow: 'ellipsize' },
-      columnStyles: { 0: { cellWidth: 22 }, 1: { cellWidth: 32 }, 2: { cellWidth: 96 }, 3: { cellWidth: 30, halign: 'right', fontStyle: 'bold' } }
+      styles: { fontSize: 7, cellPadding: 2, overflow: 'ellipsize' },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 32, overflow: 'linebreak' },
+        4: { cellWidth: 52 },
+        5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+      }
     });
 
     // RH por funcionário (top 100)
@@ -474,7 +501,9 @@ async function baixarCustoObraExcel() {
       "Data": g.data,
       "Categoria": g.categoria || "",
       "Descrição": g.descricao || "",
-      "Fornecedor": g.fornecedor || "",
+      "Fornecedor/Loja": g.fornecedor || "",
+      "Forma de Pagamento": formatarPagamentoCusto(g) || "",
+      "Parcelas": g.parcelas || "",
       "Documento": g.documento || "",
       "Observações": g.observacoes || "",
       "Valor": Number(g.valor) || 0
@@ -520,22 +549,24 @@ async function baixarFolhaPDF() {
     doc.setFillColor(255, 255, 255); doc.rect(0, 0, 297, 40, 'F');
     if (logoImg) { try { doc.addImage(logoImg, 'PNG', 14, 6, 24, 24); } catch(e) {} }
 
-    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold"); doc.setFontSize(16);
-    doc.text(`${DADOS_EMPRESA.nome}`, 44, 14);
+    doc.setTextColor(30, 41, 59); doc.setFont("helvetica", "bold");
+    const nomeLines2 = doc.splitTextToSize(String(DADOS_EMPRESA.nome || ""), 130);
+    doc.setFontSize(14);
+    doc.text(nomeLines2, 44, 13);
+    const yNome2Fim = 13 + (nomeLines2.length - 1) * 6;
     doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-    doc.text(`CNPJ: ${DADOS_EMPRESA.cnpj}`, 44, 19);
-    doc.text(`${DADOS_EMPRESA.endereco}`, 44, 24);
-    
-    doc.setTextColor(30, 41, 59);
+    doc.text(`CNPJ: ${DADOS_EMPRESA.cnpj}`, 44, yNome2Fim + 7);
+    doc.text(`${DADOS_EMPRESA.endereco}`, 44, yNome2Fim + 12);
+doc.setTextColor(30, 41, 59);
     doc.setFontSize(16); doc.setFont("helvetica", "bold");
-    doc.text("FOLHA DE PAGAMENTO", 280, 14, {align:'right'});
+    doc.text("FOLHA DE PAGAMENTO", 280, 13, {align:'right'});
     
     doc.setTextColor(37, 99, 235);
     doc.setFontSize(11);
-    doc.text(`OBRA: ${dados.nomeObra.toUpperCase()}`, 280, 20, {align:'right'});
+    doc.text(`OBRA: ${dados.nomeObra.toUpperCase()}`, 280, 19, {align:'right'});
 
     doc.setTextColor(100); doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text(`Período: ${dados.periodo}`, 280, 25, {align:'right'});
+    doc.text(`Período: ${dados.periodo}`, 280, 24, {align:'right'});
 
     doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.5); doc.line(14, 35, 283, 35);
 

@@ -200,40 +200,58 @@
   <section id="tab-gastos" class="app-section">
     <div class="app-card">
       <div class="card-title"><span class="material-symbols-outlined">payments</span> Lançar Despesa</div>
+      <small style="color:#64748b; display:block; margin-top:-4px;">Campos com <b>*</b> são obrigatórios.</small>
+      <input type="hidden" id="gasto-id">
 
       <div class="md-field">
-        <label>Categoria</label>
-        <input type="text" id="gasto-categoria" list="lista-categorias-caixa" class="form-control" placeholder="Ex: Combustível">
-        <datalist id="lista-categorias-caixa">
-          <option value="Materiais Ordinários"></option>
-          <option value="Combustível"></option>
-          <option value="Compras Extras"></option>
-          <option value="Ferramentas"></option>
-          <option value="Serviços"></option>
-          <option value="Transporte"></option>
-          <option value="Alimentação"></option>
-          <option value="Outros"></option>
-        </datalist>
+        <label>Categoria *</label>
+        <select id="gasto-categoria" class="form-control" required>
+          <option value="">Selecione...</option>
+          <option value="Materiais Ordinários">Materiais Ordinários</option>
+          <option value="Combustível">Combustível</option>
+          <option value="Compras Extras">Compras Extras</option>
+          <option value="Ferramentas">Ferramentas</option>
+          <option value="Serviços">Serviços</option>
+          <option value="Transporte">Transporte</option>
+          <option value="Alimentação">Alimentação</option>
+          <option value="Outros">Outros</option>
+        </select>
       </div>
 
       <div class="md-field">
-        <label>Descrição (O que comprou?)</label>
-        <input type="text" id="gasto-desc" class="form-control" placeholder="Ex: Nota de compra - Cimento, Gasolina, Almoço">
+        <label>Descrição (O que comprou?) *</label>
+        <input type="text" id="gasto-desc" class="form-control" required placeholder="Ex: Nota de compra - Cimento, Gasolina, Almoço">
       </div>
 
       <div class="md-field" style="display:flex; gap:10px;">
         <div style="flex:1">
-          <label>Valor (R$)</label>
-          <input type="text" id="gasto-valor" class="form-control mask-money" placeholder="R$ 0,00">
+          <label>Valor (R$) *</label>
+          <input type="text" id="gasto-valor" class="form-control mask-money" required placeholder="R$ 0,00">
         </div>
         <div style="flex:1">
-          <label>Data</label>
-          <input type="date" id="gasto-data" class="form-control">
+          <label>Data *</label>
+          <input type="date" id="gasto-data" class="form-control" required>
         </div>
       </div>
 
       <div class="md-field"><label>Fornecedor / Loja</label><input type="text" id="gasto-fornecedor" class="form-control" placeholder="Ex: Posto X / Loja Y (opcional)"></div>
       <div class="md-field"><label>Nº Documento / Nota</label><input type="text" id="gasto-documento" class="form-control" placeholder="Ex: NF 12345 (opcional)"></div>
+      <div class="md-field">
+        <label>Forma de Pagamento *</label>
+        <select id="gasto-pagamento" class="form-control" required>
+          <option value="">Selecione...</option>
+          <option value="Dinheiro">Dinheiro</option>
+          <option value="Pix">Pix</option>
+          <option value="Cartão de Débito">Cartão de Débito</option>
+          <option value="Cartão de Crédito">Cartão de Crédito</option>
+        </select>
+      </div>
+
+      <div class="md-field" id="gasto-parcelas-box" style="display:none">
+        <label>Parcelas (Crédito) *</label>
+        <input type="number" id="gasto-parcelas" class="form-control" min="1" step="1" placeholder="Ex: 3">
+      </div>
+
 
       <div class="md-field">
         <label>Observações</label>
@@ -246,14 +264,17 @@
         <small style="color:#64748b;">Opcional — você pode anexar 1 ou mais arquivos.</small>
       </div>
 
-      <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="lancarGasto()">Salvar Despesa</button>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn-primary" style="flex:1;" id="btn-gasto-salvar" onclick="lancarGasto()">Salvar Despesa</button>
+        <button class="btn-secondary" style="flex:1; display:none;" id="btn-gasto-cancelar" onclick="cancelarEdicaoGasto()">Cancelar</button>
+      </div>
     </div>
 
     <div class="app-card">
         <div class="card-title">Meus Lançamentos (Mês)</div>
         <div class="table-wrapper">
             <table class="md-table">
-                <thead><tr><th>Dia</th><th>Cat.</th><th>Desc.</th><th>R$</th><th>Comp.</th><th>X</th></tr></thead>
+                <thead><tr><th>Dia</th><th>Cat.</th><th>Desc.</th><th>R$</th><th>Comp.</th><th>Ações</th></tr></thead>
                 <tbody id="lista-gastos"><tr><td colspan="6">...</td></tr></tbody>
             </table>
         </div>

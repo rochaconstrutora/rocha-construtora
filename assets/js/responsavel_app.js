@@ -49,6 +49,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   carregarListaPonto();
   carregarListaDiario();
   carregarListaMateriais();
+
+  // UI: Parcelas só quando for Cartão de Crédito
+  document.getElementById("gasto-pagamento")?.addEventListener("change", atualizarUIParcelasGasto);
+  atualizarUIParcelasGasto();
+
   carregarListaGastos();
 });
 
@@ -569,47 +574,297 @@ window.excluirDiario = async (id) => {
 };
 
 // === GASTOS ===
-async function lancarGasto() {
-  const desc = document.getElementById("gasto-desc").value.trim();
-  const valorStr = document.getElementById("gasto-valor").value;
-  const data = document.getElementById("gasto-data").value;
-  if (!desc || !valorStr) return aviso("Preencha campos.");
-  const valor = parseFloat(valorStr.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
+let editandoGastoId = null;
 
-  const { error } = await supa.from("caixa_obra").insert([
-    { obra_id: obraAtualId, usuario_id: usuarioAtual.perfil.id, descricao: desc, valor: valor, data: data },
-  ]);
+function formatarPagamentoGasto(g) {
+  const forma = (g?.forma_pagamento || "").trim();
+  const parcelas = Number(g?.parcelas || 0);
+  if (!forma) return "";
+  if (forma === "Cartão de Crédito" && parcelas > 1) return `${forma} (${parcelas}x)`;
+  if (forma === "Cartão de Crédito" && parcelas === 1) return `${forma} (1x)`;
+  return forma;
+}
 
-  if (error) return erro("Erro.");
-  sucesso("Lançado!");
+function atualizarUIParcelasGasto() {
+  const sel = document.getElementById("gasto-pagamento");
+  const box = document.getElementById("gasto-parcelas-box");
+  const inp = document.getElementById("gasto-parcelas");
+  if (!sel || !box) return;
+  const ehCredito = (sel.value || "") === "Cartão de Crédito";
+  box.style.display = ehCredito ? "" : "none";
+  if (ehCredito && inp) {
+    const n = Number(inp.value || 0);
+    if (!Number.isFinite(n) || n <= 0) inp.value = "1";
+  }
+  if (!ehCredito && inp) inp.value = "";
+}
+
+async function uploadComprovantesResponsavel(files, obraId) {
+  const arr = Array.from(files || []).filter(Boolean);
+  if (!arr.length) return [];
+  const paths = [];
+
+  for (const f of arr) {
+    const ext = (f.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const rand = Math.random().toString(16).slice(2);
+    const nome = `${Date.now()}_${rand}.${ext || "bin"}`;
+    const path = `caixa/${obraId}/${usuarioAtual?.auth?.id || "system"}/${nome}`;
+
+    const { error } = await supa.storage.from("comprovantes").upload(path, f, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: f.type || "application/octet-stream"
+    });
+
+    if (error) {
+      console.error(error);
+      aviso("Falha ao enviar comprovante: " + (error.message || "erro"));
+      continue;
+    }
+    paths.push(path);
+  }
+  return paths;
+}
+
+window.abrirComprovanteResponsavel = async (pathEnc) => {
+  try {
+    const path = decodeURIComponent(String(pathEnc || ""));
+    const url = await resolverUrlFotoDiario("comprovantes", path, 3600);
+    if (!url) return aviso("Sem acesso ao comprovante (ou expirou).");
+    window.open(url, "_blank");
+  } catch (e) {
+    aviso("Não foi possível abrir.");
+  }
+};
+
+window.cancelarEdicaoGasto = (silencioso = false) => {
+  editandoGastoId = null;
+  document.getElementById("gasto-id").value = "";
   document.getElementById("gasto-desc").value = "";
   document.getElementById("gasto-valor").value = "";
+  document.getElementById("gasto-fornecedor").value = "";
+  document.getElementById("gasto-documento").value = "";
+  document.getElementById("gasto-obs").value = "";
+  document.getElementById("gasto-categoria").value = "";
+  document.getElementById("gasto-pagamento").value = "";
+  document.getElementById("gasto-parcelas").value = "";
+  const inputFiles = document.getElementById("gasto-comprovantes");
+  if (inputFiles) inputFiles.value = "";
+  window.__gastoComprovantesExistentes = [];
+  atualizarUIParcelasGasto();
+
+  const btnSalvar = document.getElementById("btn-gasto-salvar");
+  const btnCancelar = document.getElementById("btn-gasto-cancelar");
+  if (btnSalvar) btnSalvar.textContent = "Salvar Despesa";
+  if (btnCancelar) btnCancelar.style.display = "none";
+
+  if (!silencioso) sucesso("Edição cancelada.");
+};
+
+window.prepararEdicaoGasto = async (id) => {
+  const { data, error } = await supa
+    .from("caixa_obra")
+    .select("*")
+    .eq("id", id)
+    .eq("usuario_id", usuarioAtual?.perfil?.id)
+    .single();
+
+  if (error || !data) return erro("Não foi possível abrir este lançamento.");
+
+  editandoGastoId = data.id;
+  document.getElementById("gasto-id").value = data.id;
+  document.getElementById("gasto-data").value = data.data || hojeLocalISO();
+  document.getElementById("gasto-categoria").value = data.categoria || "";
+  document.getElementById("gasto-desc").value = data.descricao || "";
+  document.getElementById("gasto-valor").value = Number(data.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+  document.getElementById("gasto-valor").dispatchEvent(new Event("input"));
+
+  document.getElementById("gasto-fornecedor").value = data.fornecedor || "";
+  document.getElementById("gasto-documento").value = data.documento || "";
+  document.getElementById("gasto-obs").value = data.observacoes || "";
+
+  const selPag = document.getElementById("gasto-pagamento");
+  if (selPag) selPag.value = data.forma_pagamento || "";
+  const inpParc = document.getElementById("gasto-parcelas");
+  if (inpParc) inpParc.value = data.parcelas ? String(data.parcelas) : "";
+
+  window.__gastoComprovantesExistentes = parseFotosCampo(data.comprovantes);
+  const inputFiles = document.getElementById("gasto-comprovantes");
+  if (inputFiles) inputFiles.value = "";
+
+  atualizarUIParcelasGasto();
+
+  const btnSalvar = document.getElementById("btn-gasto-salvar");
+  const btnCancelar = document.getElementById("btn-gasto-cancelar");
+  if (btnSalvar) btnSalvar.textContent = "Atualizar Despesa";
+  if (btnCancelar) btnCancelar.style.display = "";
+
+  aviso("Editando despesa.");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+async function lancarGasto() {
+  const id = document.getElementById("gasto-id")?.value || "";
+  const categoria = document.getElementById("gasto-categoria")?.value?.trim() || "";
+  const desc = document.getElementById("gasto-desc")?.value?.trim() || "";
+  const valorStr = document.getElementById("gasto-valor")?.value || "";
+  const data = document.getElementById("gasto-data")?.value || hojeLocalISO();
+
+  const fornecedor = document.getElementById("gasto-fornecedor")?.value?.trim() || "";
+  const documento = document.getElementById("gasto-documento")?.value?.trim() || "";
+  const observacoes = document.getElementById("gasto-obs")?.value?.trim() || "";
+
+  const formaPagamento = document.getElementById("gasto-pagamento")?.value?.trim() || "";
+  const parcelasStr = String(document.getElementById("gasto-parcelas")?.value || "").trim();
+  const parcelasRaw = Number(parcelasStr || 0);
+  const parcelasFinal = (formaPagamento === "Cartão de Crédito") ? (parcelasRaw > 0 ? parcelasRaw : 1) : null;
+
+  // Obrigatórios
+  if (!categoria) return aviso("Selecione a categoria.");
+  if (!desc) return aviso("Informe a descrição.");
+  if (!valorStr) return aviso("Informe o valor.");
+  if (!data) return aviso("Informe a data.");
+  if (!formaPagamento) return aviso("Selecione a forma de pagamento.");
+
+  // Parcelas (somente crédito)
+  if (formaPagamento === "Cartão de Crédito") {
+    if (!parcelasStr) {
+      const inp = document.getElementById("gasto-parcelas");
+      if (inp) inp.value = "1";
+    } else if (!Number.isFinite(parcelasRaw) || parcelasRaw < 1) {
+      return aviso("Parcelas inválidas.");
+    }
+  }
+
+  const valor = parseFloat(valorStr.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
+  if (!Number.isFinite(valor) || valor <= 0) return aviso("Valor inválido.");
+
+  // Upload de comprovantes (opcional)
+  const inputFiles = document.getElementById("gasto-comprovantes");
+  const novos = await uploadComprovantesResponsavel(inputFiles?.files, obraAtualId);
+  const comprovantes = [...(window.__gastoComprovantesExistentes || []), ...novos];
+
+  const payloadCompleto = {
+    obra_id: obraAtualId,
+    usuario_id: usuarioAtual?.perfil?.id,
+    data,
+    categoria: categoria || null,
+    descricao: desc,
+    valor,
+    fornecedor: fornecedor || null,
+    documento: documento || null,
+    observacoes: observacoes || null,
+    forma_pagamento: formaPagamento || null,
+    parcelas: parcelasFinal,
+    comprovantes: comprovantes
+  };
+
+  const tentarUpsert = async (payload) => {
+    if (id) {
+      return await supa
+        .from("caixa_obra")
+        .update(payload)
+        .eq("id", id)
+        .eq("usuario_id", usuarioAtual?.perfil?.id);
+    }
+    return await supa.from("caixa_obra").insert([payload]);
+  };
+
+  let { error } = await tentarUpsert(payloadCompleto);
+
+  // Retry rápido para casos em que o Supabase/PostgREST ainda não atualizou o "schema cache"
+  if (error) {
+    const msg0 = String(error.message || "");
+    if (/schema cache/i.test(msg0) || /in the schema cache/i.test(msg0)) {
+      await new Promise((r) => setTimeout(r, 1800));
+      const r2 = await tentarUpsert(payloadCompleto);
+      error = r2.error;
+    }
+  }
+
+  if (error) {
+    const msg = String(error.message || "");
+    // Compatibilidade com banco antigo (sem as novas colunas)
+    if (msg.includes("column") && (msg.includes("categoria") || msg.includes("fornecedor") || msg.includes("comprovantes") || msg.includes("forma_pagamento") || msg.includes("parcelas"))) {
+      const payloadAntigo = { obra_id: obraAtualId, usuario_id: usuarioAtual?.perfil?.id, data, descricao: desc, valor };
+      let r2;
+      if (id) r2 = await supa.from("caixa_obra").update(payloadAntigo).eq("id", id).eq("usuario_id", usuarioAtual?.perfil?.id);
+      else r2 = await supa.from("caixa_obra").insert([payloadAntigo]);
+      if (r2.error) return erro("Erro: " + r2.error.message);
+      aviso("Salvou no modo compatibilidade. Para liberar categoria/fornecedor/pagamento/anexos, rode o arquivo SQL_ATUALIZACAO.sql no Supabase.");
+    } else {
+      return erro("Erro: " + error.message);
+    }
+  } else {
+    sucesso(id ? "Despesa atualizada!" : "Despesa salva!");
+  }
+
+  // Reset
+  window.cancelarEdicaoGasto(true);
   carregarListaGastos();
 }
 
 async function carregarListaGastos() {
   const tbody = document.getElementById("lista-gastos");
   const inicioMes = mesLocalISO() + "-01";
+  if (!tbody) return;
 
-  const { data } = await supa
+  const { data, error } = await supa
     .from("caixa_obra")
-    .select("*")
+    .select("id, data, categoria, descricao, valor, comprovantes, fornecedor, forma_pagamento, parcelas")
     .eq("obra_id", obraAtualId)
+    .eq("usuario_id", usuarioAtual?.perfil?.id)
     .gte("data", inicioMes)
     .order("data", { ascending: false });
 
+  if (error) {
+    console.error(error);
+    tbody.innerHTML = "<tr><td colspan='6'>Erro ao carregar.</td></tr>";
+    return;
+  }
+
   tbody.innerHTML = "";
-  if (!data || !data.length) return (tbody.innerHTML = "<tr><td colspan='4'>Vazio este mês.</td></tr>");
+  if (!data || !data.length) return (tbody.innerHTML = "<tr><td colspan='6'>Vazio este mês.</td></tr>");
 
   data.forEach((g) => {
     const val = num(g.valor, 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-    tbody.innerHTML += `<tr><td>${String(g.data||'').split("-")[2] || ''}</td><td style="font-size:12px;">${escapeHtml(g.descricao)}</td><td style="color:#ef4444; font-weight:bold; font-size:12px;">${val}</td><td><button style="color:red;border:none;background:none;" onclick="excluirGasto('${g.id}')">x</button></td></tr>`;
+    const dia = String(g.data || "").split("-")[2] || "";
+    const comps = parseFotosCampo(g.comprovantes);
+    const compBtn = comps.length
+      ? `<button class="btn-secondary btn-sm" onclick="abrirComprovanteResponsavel('${encodeURIComponent(comps[0])}')">Ver (${comps.length})</button>`
+      : "-";
+
+    const pag = formatarPagamentoGasto(g);
+    const extraLinha = [g.fornecedor ? `Loja: ${escapeHtml(g.fornecedor)}` : "", pag ? `Pag.: ${escapeHtml(pag)}` : ""].filter(Boolean).join(" • ");
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${dia}</td>
+        <td style="font-size:12px;">${escapeHtml(g.categoria || "-")}</td>
+        <td style="font-size:12px;">
+          ${escapeHtml(g.descricao || "")}
+          ${extraLinha ? `<div style="font-size:11px;color:#64748b; margin-top:2px;">${extraLinha}</div>` : ""}
+        </td>
+        <td style="color:#ef4444; font-weight:bold; font-size:12px; text-align:right;">${val}</td>
+        <td>${compBtn}</td>
+        <td style="white-space:nowrap;">
+          <button class="btn-secondary btn-sm" onclick="prepararEdicaoGasto('${g.id}')">Editar</button>
+          <button class="btn-danger btn-sm" onclick="excluirGasto('${g.id}')">Excluir</button>
+        </td>
+      </tr>`;
   });
 }
 
 window.excluirGasto = async (id) => {
   if (!confirm("Excluir?")) return;
-  await supa.from("caixa_obra").delete().eq("id", id);
+  const { error } = await supa
+    .from("caixa_obra")
+    .delete()
+    .eq("id", id)
+    .eq("usuario_id", usuarioAtual?.perfil?.id);
+
+  if (error) return erro("Erro: " + error.message);
+  sucesso("Excluído.");
   carregarListaGastos();
 };
 

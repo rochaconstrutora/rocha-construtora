@@ -71,6 +71,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       carregarCaixaAdmin();
       const formCaixa = document.getElementById("form-caixa-admin");
       if(formCaixa) formCaixa.addEventListener("submit", salvarCaixaAdmin);
+      // UI: Parcelas só quando for Cartão de Crédito
+      const selPag = document.getElementById("caixa-admin-pagamento");
+      if (selPag) selPag.addEventListener("change", atualizarUIParcelasCaixaAdmin);
+      atualizarUIParcelasCaixaAdmin();
+
   }
   // Inicializa Materiais
   if (document.getElementById("sec-materiais")) carregarMateriaisAdmin('Pendente');
@@ -112,6 +117,20 @@ function processarDataDigitada(texto) {
     else return null;
     if (parseInt(mes) > 12 || parseInt(dia) > 31) return null;
     return `${ano}-${mes}-${dia}`;
+}
+
+function atualizarUIParcelasCaixaAdmin() {
+  const sel = document.getElementById("caixa-admin-pagamento");
+  const box = document.getElementById("caixa-admin-parcelas-box");
+  const inp = document.getElementById("caixa-admin-parcelas");
+  if (!sel || !box) return;
+  const ehCredito = (sel.value || "") === "Cartão de Crédito";
+  box.style.display = ehCredito ? "" : "none";
+  if (ehCredito && inp) {
+    const n = Number(inp.value || 0);
+    if (!Number.isFinite(n) || n <= 0) inp.value = "1";
+  }
+  if (!ehCredito && inp) inp.value = "";
 }
 
 // --- MÓDULO MATERIAIS (COM WHATSAPP) ---
@@ -399,8 +418,29 @@ async function salvarCaixaAdmin(e) {
   const fornecedor = document.getElementById("caixa-admin-fornecedor")?.value?.trim() || "";
   const documento = document.getElementById("caixa-admin-documento")?.value?.trim() || "";
   const observacoes = document.getElementById("caixa-admin-observacoes")?.value?.trim() || "";
+  const formaPagamento = document.getElementById("caixa-admin-pagamento")?.value?.trim() || "";
+  const parcelasStr = String(document.getElementById("caixa-admin-parcelas")?.value || "").trim();
+  const parcelasRaw = Number(parcelasStr || 0);
+  const parcelasFinal = (formaPagamento === "Cartão de Crédito") ? (parcelasRaw > 0 ? parcelasRaw : 1) : null;
 
-  if (!obraId || !data || !desc || !valorStr) return aviso("Preencha campos.");
+  // Obrigatórios
+  if (!obraId) return aviso("Selecione a obra.");
+  if (!data) return aviso("Informe a data.");
+  if (!categoria) return aviso("Selecione a categoria.");
+  if (!desc) return aviso("Informe a descrição.");
+  if (!valorStr) return aviso("Informe o valor.");
+  if (!formaPagamento) return aviso("Selecione a forma de pagamento.");
+
+  // Parcelas (somente crédito)
+  if (formaPagamento === "Cartão de Crédito") {
+    // Se estiver vazio, assume 1x (evita traço no relatório)
+    if (!parcelasStr) {
+      const inp = document.getElementById("caixa-admin-parcelas");
+      if (inp) inp.value = "1";
+    } else if (!Number.isFinite(parcelasRaw) || parcelasRaw < 1) {
+      return aviso("Parcelas inválidas.");
+    }
+  }
 
   const valor = parseFloat(valorStr.replace("R$", "").replace(/\./g, "").replace(",", ".").trim());
   if (!Number.isFinite(valor) || valor <= 0) return aviso("Valor inválido.");
@@ -420,23 +460,34 @@ async function salvarCaixaAdmin(e) {
     fornecedor: fornecedor || null,
     documento: documento || null,
     observacoes: observacoes || null,
-    comprovantes: comprovantes.length ? comprovantes : null
+    forma_pagamento: formaPagamento || null,
+    parcelas: parcelasFinal,
+    comprovantes: comprovantes
   };
 
-  let error;
+  const tentarUpsert = async (payload) => {
+    if (id) return await supa.from("caixa_obra").update(payload).eq("id", id);
+    return await supa.from("caixa_obra").insert([payload]);
+  };
 
-  if (id) {
-    const res = await supa.from("caixa_obra").update(payloadCompleto).eq("id", id);
-    error = res.error;
-  } else {
-    const res = await supa.from("caixa_obra").insert([payloadCompleto]);
-    error = res.error;
+  let { error } = await tentarUpsert(payloadCompleto);
+
+  // Em alguns casos o Supabase/PostgREST demora a atualizar o "schema cache" após rodar o SQL.
+  // Quando isso acontece, ele pode acusar que a coluna "não existe" mesmo existindo.
+  // Fazemos um retry rápido antes de cair no modo compatibilidade.
+  if (error) {
+    const msg0 = String(error.message || "");
+    if (/schema cache/i.test(msg0) || /in the schema cache/i.test(msg0)) {
+      await new Promise((r) => setTimeout(r, 1800));
+      const r2 = await tentarUpsert(payloadCompleto);
+      error = r2.error;
+    }
   }
 
   if (error) {
     const msg = String(error.message || "");
     // Fallback: se a tabela ainda não tem as novas colunas, salva no formato antigo para não quebrar.
-    if (msg.includes("column") && (msg.includes("categoria") || msg.includes("fornecedor") || msg.includes("comprovantes"))) {
+    if (msg.includes("column") && (msg.includes("categoria") || msg.includes("fornecedor") || msg.includes("comprovantes") || msg.includes("forma_pagamento") || msg.includes("parcelas"))) {
       const payloadAntigo = { obra_id: obraId, usuario_id: usuarioAdminAtual?.perfil?.id, data, descricao: desc, valor };
       if (id) {
         const res2 = await supa.from("caixa_obra").update(payloadAntigo).eq("id", id);
@@ -445,7 +496,7 @@ async function salvarCaixaAdmin(e) {
         const res2 = await supa.from("caixa_obra").insert([payloadAntigo]);
         if (res2.error) return erro("Erro: " + res2.error.message);
       }
-      aviso("Salvou, mas sem 'custo completo' (falta atualizar o banco com o SQL).");
+      aviso("Salvou no modo compatibilidade. Para liberar categoria/fornecedor/pagamento/anexos e o relatório detalhado, rode o arquivo SQL_ATUALIZACAO.sql no Supabase.");
     } else {
       return erro("Erro: " + error.message);
     }
@@ -458,6 +509,7 @@ async function salvarCaixaAdmin(e) {
   document.getElementById("caixa-admin-id").value = "";
   window.__caixaAdminComprovantesExistentes = [];
   if (inputFiles) inputFiles.value = "";
+  atualizarUIParcelasCaixaAdmin();
 
   carregarCaixaAdmin();
 }
@@ -555,6 +607,13 @@ async function carregarCaixaAdmin() {
       ? `<button class="btn-secondary btn-sm" onclick="abrirComprovanteAdmin('${encodeURIComponent(comps[0])}')">Ver (${comps.length})</button>`
       : "-";
 
+    const pag = (c.forma_pagamento || "").trim();
+    const parc = Number(c.parcelas || 0);
+    const infoExtra = [
+      c.fornecedor ? `Loja: ${escapeHtml(c.fornecedor)}` : "",
+      pag ? (pag === "Cartão de Crédito" && parc > 0 ? `Pag.: ${escapeHtml(pag)} (${parc}x)` : `Pag.: ${escapeHtml(pag)}`) : ""
+    ].filter(Boolean).join(" • ");
+
     tbody.innerHTML += `<tr>
       <td>${formatarDataBR(c.data)}</td>
       <td>
@@ -562,7 +621,10 @@ async function carregarCaixaAdmin() {
         <div style="font-size:11px;color:#64748b;">${escapeHtml(c.usuarios?.nome?.split(" ")[0] || "Sistema")}</div>
       </td>
       <td style="font-size:12px; color:#64748b;">${escapeHtml(c.categoria || "-")}</td>
-      <td>${escapeHtml(c.descricao)}</td>
+      <td>
+        ${escapeHtml(c.descricao)}
+        ${infoExtra ? `<div style="font-size:11px;color:#64748b; margin-top:2px;">${infoExtra}</div>` : ""}
+      </td>
       <td style="color:#ef4444;font-weight:bold;">${Number(c.valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td>
       <td>${compBtn}</td>
       <td class="actions-cell">
@@ -596,6 +658,12 @@ window.editarCaixaAdmin = async (id) => {
   if (elD) elD.value = data.documento || "";
   const elO = document.getElementById("caixa-admin-observacoes");
   if (elO) elO.value = data.observacoes || "";
+
+  const elP = document.getElementById("caixa-admin-pagamento");
+  if (elP) elP.value = data.forma_pagamento || "";
+  const elParc = document.getElementById("caixa-admin-parcelas");
+  if (elParc) elParc.value = data.parcelas ? String(data.parcelas) : "";
+  atualizarUIParcelasCaixaAdmin();
 
   window.__caixaAdminComprovantesExistentes = parseFotosCampo(data.comprovantes);
 
@@ -866,6 +934,8 @@ async function carregarDetalhadoCustoCaixa(ctx) {
 function prefillRelatorioCustoFromCaixa() {
   const obraId = document.getElementById("caixa-filtro-obra")?.value;
   const mesAno = document.getElementById("caixa-filtro-mes")?.value;
+  const catFiltro = (document.getElementById("caixa-filtro-categoria")?.value || "").trim();
+  window.__custoFiltroCategoria = catFiltro;
 
   if (!obraId) {
     aviso("Selecione uma obra no filtro do Caixa (não pode ser 'Todas').");
@@ -906,6 +976,7 @@ window.caixaGerarCustoPDF = async () => {
   if (!ok) return;
   if (typeof baixarCustoObraPDF !== "function") return erro("Função de PDF não encontrada.");
   await baixarCustoObraPDF();
+  window.__custoFiltroCategoria = "";
 };
 
 window.caixaGerarCustoExcel = async () => {
@@ -913,4 +984,5 @@ window.caixaGerarCustoExcel = async () => {
   if (!ok) return;
   if (typeof baixarCustoObraExcel !== "function") return erro("Função de Excel não encontrada.");
   await baixarCustoObraExcel();
+  window.__custoFiltroCategoria = "";
 };
