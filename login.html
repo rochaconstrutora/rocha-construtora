@@ -13,8 +13,8 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
 
   <link rel="stylesheet" href="assets/css/style.css">
 
@@ -22,6 +22,88 @@
   <script defer src="assets/js/supabaseClient.js"></script>
   <script defer src="assets/js/auth.js"></script>
   <script defer src="assets/js/utils.js"></script>
+
+  <style>
+    .login-body {
+      background: linear-gradient(135deg, #0c1629 0%, #0f172a 50%, #1a2744 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    /* Decoração de fundo */
+    .login-body::before {
+      content: '';
+      position: fixed;
+      top: -200px; left: -200px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(30,136,229,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .login-body::after {
+      content: '';
+      position: fixed;
+      bottom: -200px; right: -200px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(30,136,229,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .login-card {
+      border-radius: 20px !important;
+      padding: 44px 36px !important;
+      box-shadow: 0 24px 80px -10px rgba(0,0,0,0.4) !important;
+      position: relative;
+      z-index: 1;
+    }
+    .login-logo img { max-height: 72px; margin-bottom: 18px; }
+    .login-title { font-size: 22px !important; font-weight: 700 !important; }
+    .login-subtitle {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 28px;
+    }
+    .input-icon-wrap {
+      position: relative;
+    }
+    .input-icon-wrap .material-symbols-outlined {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 18px;
+      color: #94a3b8;
+      pointer-events: none;
+    }
+    .input-icon-wrap input {
+      padding-left: 38px !important;
+    }
+    .btn-entrar {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      border-radius: 10px !important;
+      margin-top: 8px;
+      letter-spacing: 0.03em;
+    }
+    .login-footer {
+      margin-top: 18px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .login-footer a {
+      color: #60a5fa;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .login-footer a:hover { color: #93c5fd; }
+    .login-version {
+      position: fixed;
+      bottom: 14px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+    }
+  </style>
 </head>
 
 <body class="login-body">
@@ -32,34 +114,42 @@
         <img src="assets/img/logo_preto.png" alt="Logo Rocha Construtora">
       </div>
 
-      <h2 class="login-title">Acessar Painel</h2>
+      <h2 class="login-title">Bem-vindo de volta</h2>
+      <p class="login-subtitle">Faça login para acessar o painel</p>
 
       <form onsubmit="login(event)">
-        <div class="md-field" style="text-align:left">
+        <div class="md-field" style="text-align:left; margin-bottom:14px;">
           <label for="login-email">E-mail</label>
-          <input type="email" id="login-email" placeholder="seu@email.com" required>
+          <div class="input-icon-wrap">
+            <span class="material-symbols-outlined">mail</span>
+            <input type="email" id="login-email" placeholder="seu@email.com" required autocomplete="email">
+          </div>
         </div>
 
-        <div class="md-field" style="text-align:left">
+        <div class="md-field" style="text-align:left; margin-bottom:20px;">
           <label for="login-senha">Senha</label>
-          <input type="password" id="login-senha" placeholder="Sua senha" required>
+          <div class="input-icon-wrap">
+            <span class="material-symbols-outlined">lock</span>
+            <input type="password" id="login-senha" placeholder="Sua senha" required autocomplete="current-password">
+          </div>
         </div>
 
-        <div class="md-actions" style="margin-top:25px; display:block;">
-          <button type="submit" class="btn-primary" style="width:100%; padding:12px; font-size:16px;">
-            <span class="material-symbols-outlined" style="margin-right:8px; font-size:20px;">login</span>
-            Entrar
-          </button>
-        </div>
+        <button type="submit" id="btn-login" class="btn-primary btn-entrar">
+          <span class="material-symbols-outlined" style="font-size:18px;">login</span>
+          Entrar no Painel
+        </button>
 
-        <div id="error-msg" class="login-error" style="display:none;"></div>
-        
-        <div style="margin-top:20px; font-size:13px;">
-          <a href="reset.html" style="color:#1e88e5; text-decoration:none;">Esqueci a minha senha</a>
+        <div class="login-footer">
+          <a href="reset.html">
+            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">key</span>
+            Esqueci minha senha
+          </a>
         </div>
       </form>
     </div>
   </div>
+
+  <div class="login-version">Rocha Construtora — Sistema de Controle v2.0</div>
 
 </body>
 </html>
